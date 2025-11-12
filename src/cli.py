@@ -10,10 +10,15 @@ Usage:
 import argparse
 import json
 import sys
+import os
 from pathlib import Path
 from prompts.schemas import Script, validate_setup_payoff_integrity
 from src.pipeline import run_pipeline
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(
@@ -62,8 +67,14 @@ def cmd_analyze(args):
         script = load_script(args.script)
         logger.info(f"Loaded script with {len(script.scenes)} scenes")
 
+        # Get provider from args or environment
+        provider = args.provider or os.getenv("LLM_PROVIDER", "deepseek")
+        model = args.model
+
+        logger.info(f"Using LLM provider: {provider}" + (f", model: {model}" if model else ""))
+
         # Run pipeline
-        final_state = run_pipeline(script)
+        final_state = run_pipeline(script, provider=provider, model=model)
 
         # Save results
         if args.output:
@@ -195,6 +206,10 @@ def main():
     parser_analyze = subparsers.add_parser('analyze', help='Analyze a script')
     parser_analyze.add_argument('script', help='Path to script JSON file')
     parser_analyze.add_argument('--output', '-o', help='Output file for results')
+    parser_analyze.add_argument('--provider', '-p',
+                                choices=['deepseek', 'anthropic', 'openai'],
+                                help='LLM provider (default: from .env or deepseek)')
+    parser_analyze.add_argument('--model', '-m', help='Model name (optional)')
     parser_analyze.set_defaults(func=cmd_analyze)
 
     # Validate command

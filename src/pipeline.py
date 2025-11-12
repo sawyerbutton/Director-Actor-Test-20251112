@@ -4,19 +4,30 @@ LangGraph-based pipeline for the three-stage script analysis system.
 This module implements the Director-Actor architecture:
 - Director: Orchestrates the workflow
 - Actors: Three specialized agents (Discoverer, Auditor, Modifier)
+
+Supports multiple LLM providers:
+- DeepSeek (default, via OpenAI-compatible API)
+- Anthropic Claude
+- OpenAI
 """
 
-from typing import TypedDict, Annotated, Sequence, Optional
-from langchain_anthropic import ChatAnthropic
+from typing import TypedDict, Annotated, Sequence, Optional, Union
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import StateGraph, END
 from prompts.schemas import (
     Script, DiscovererOutput, AuditorOutput, ModifierOutput,
     calculate_setup_payoff_density, validate_tcc_independence
 )
 import json
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 import logging
+
+# Load environment variables
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +62,93 @@ class PipelineState(TypedDict):
 
 
 # ============================================================================
+# LLM Configuration
+# ============================================================================
+
+def create_llm(
+    provider: str = "deepseek",
+    model: Optional[str] = None,
+    temperature: float = 0.0,
+    max_tokens: int = 4096
+) -> BaseChatModel:
+    """
+    Create LLM instance based on provider.
+
+    Args:
+        provider: LLM provider ("deepseek", "anthropic", "openai")
+        model: Model name (optional, uses default if not provided)
+        temperature: Temperature for generation
+        max_tokens: Maximum tokens to generate
+
+    Returns:
+        Configured LLM instance
+
+    Environment Variables:
+        - DEEPSEEK_API_KEY: DeepSeek API key
+        - DEEPSEEK_BASE_URL: DeepSeek API base URL (optional, default: https://api.deepseek.com/v1)
+        - ANTHROPIC_API_KEY: Anthropic API key (if using Claude)
+        - OPENAI_API_KEY: OpenAI API key (if using OpenAI)
+    """
+    provider = provider.lower()
+
+    if provider == "deepseek":
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY environment variable not set")
+
+        base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+        model = model or "deepseek-chat"
+
+        logger.info(f"Creating DeepSeek LLM: {model} (base_url: {base_url})")
+
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=api_key,
+            openai_api_base=base_url,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+
+    elif provider == "anthropic":
+        try:
+            from langchain_anthropic import ChatAnthropic
+        except ImportError:
+            raise ImportError("langchain-anthropic not installed. Install with: pip install langchain-anthropic")
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+
+        model = model or "claude-sonnet-4-5"
+
+        logger.info(f"Creating Anthropic LLM: {model}")
+
+        return ChatAnthropic(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+
+    elif provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+
+        model = model or "gpt-4-turbo-preview"
+
+        logger.info(f"Creating OpenAI LLM: {model}")
+
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+
+    else:
+        raise ValueError(f"Unknown provider: {provider}. Choose from: deepseek, anthropic, openai")
+
+
+# ============================================================================
 # Prompt Loading
 # ============================================================================
 
@@ -70,7 +168,7 @@ def load_prompt(stage: str) -> str:
 class DiscovererActor:
     """Stage 1: TCC Identification Actor."""
 
-    def __init__(self, llm: ChatAnthropic):
+    def __init__(self, llm: BaseChatModel):
         self.llm = llm
         self.prompt_template = load_prompt("1_discoverer")
 
@@ -122,7 +220,7 @@ class DiscovererActor:
 class AuditorActor:
     """Stage 2: TCC Ranking & Analysis Actor."""
 
-    def __init__(self, llm: ChatAnthropic):
+    def __init__(self, llm: BaseChatModel):
         self.llm = llm
         self.prompt_template = load_prompt("2_auditor")
 
@@ -176,7 +274,7 @@ class AuditorActor:
 class ModifierActor:
     """Stage 3: Structural Correction Actor."""
 
-    def __init__(self, llm: ChatAnthropic):
+    def __init__(self, llm: BaseChatModel):
         self.llm = llm
         self.prompt_template = load_prompt("3_modifier")
 
@@ -305,23 +403,36 @@ def should_end(state: PipelineState) -> str:
 # Pipeline Builder
 # ============================================================================
 
-def create_pipeline(llm: Optional[ChatAnthropic] = None) -> StateGraph:
+def create_pipeline(
+    llm: Optional[BaseChatModel] = None,
+    provider: str = "deepseek",
+    model: Optional[str] = None
+) -> StateGraph:
     """
     Create the LangGraph pipeline for script analysis.
 
     Args:
-        llm: Optional LLM instance. If not provided, creates one with default settings.
+        llm: Optional LLM instance. If provided, provider and model are ignored.
+        provider: LLM provider ("deepseek", "anthropic", "openai"). Default: "deepseek"
+        model: Model name (optional, uses default for provider)
 
     Returns:
         Compiled StateGraph ready to execute.
+
+    Examples:
+        # Use default (DeepSeek)
+        pipeline = create_pipeline()
+
+        # Use specific provider
+        pipeline = create_pipeline(provider="anthropic", model="claude-sonnet-4-5")
+
+        # Use custom LLM instance
+        custom_llm = ChatOpenAI(...)
+        pipeline = create_pipeline(llm=custom_llm)
     """
     # Create LLM if not provided
     if llm is None:
-        llm = ChatAnthropic(
-            model="claude-sonnet-4-5",
-            temperature=0.0,
-            max_tokens=4096
-        )
+        llm = create_llm(provider=provider, model=model)
 
     # Create actors
     discoverer = DiscovererActor(llm)
@@ -376,18 +487,35 @@ def create_pipeline(llm: Optional[ChatAnthropic] = None) -> StateGraph:
 # Convenience Functions
 # ============================================================================
 
-def run_pipeline(script: Script, llm: Optional[ChatAnthropic] = None) -> PipelineState:
+def run_pipeline(
+    script: Script,
+    llm: Optional[BaseChatModel] = None,
+    provider: str = "deepseek",
+    model: Optional[str] = None
+) -> PipelineState:
     """
     Run the complete pipeline on a script.
 
     Args:
         script: Input script to analyze
-        llm: Optional LLM instance
+        llm: Optional LLM instance. If provided, provider and model are ignored.
+        provider: LLM provider ("deepseek", "anthropic", "openai"). Default: "deepseek"
+        model: Model name (optional, uses default for provider)
 
     Returns:
         Final pipeline state with all outputs
+
+    Examples:
+        # Use default (DeepSeek)
+        result = run_pipeline(script)
+
+        # Use specific provider
+        result = run_pipeline(script, provider="anthropic")
+
+        # Use custom LLM
+        result = run_pipeline(script, llm=custom_llm)
     """
-    pipeline = create_pipeline(llm)
+    pipeline = create_pipeline(llm=llm, provider=provider, model=model)
 
     # Initialize state
     initial_state: PipelineState = {

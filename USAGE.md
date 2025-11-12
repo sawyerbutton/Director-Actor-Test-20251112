@@ -27,10 +27,27 @@ pip install -r requirements-test.txt
 
 ### 2. Set Up API Key
 
+The system supports multiple LLM providers. **DeepSeek is the default** (most cost-effective).
+
 ```bash
-# Create .env file
-echo "ANTHROPIC_API_KEY=your_api_key_here" > .env
+# Copy the example configuration
+cp .env.example .env
+
+# Edit .env and add your API key
+# For DeepSeek (default):
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# For Anthropic Claude (optional):
+# ANTHROPIC_API_KEY=your_anthropic_key_here
+
+# For OpenAI (optional):
+# OPENAI_API_KEY=your_openai_key_here
 ```
+
+**Get API Keys:**
+- DeepSeek: https://platform.deepseek.com/
+- Anthropic: https://console.anthropic.com/
+- OpenAI: https://platform.openai.com/
 
 ---
 
@@ -81,8 +98,14 @@ from src.pipeline import run_pipeline
 # Load your script
 script = Script(**your_script_data)
 
-# Run the complete pipeline
+# Option 1: Use default provider (DeepSeek)
 final_state = run_pipeline(script)
+
+# Option 2: Specify provider
+final_state = run_pipeline(script, provider="deepseek")  # or "anthropic", "openai"
+
+# Option 3: Specify provider and model
+final_state = run_pipeline(script, provider="anthropic", model="claude-sonnet-4-5")
 
 # Access results
 discoverer_output = final_state["discoverer_output"]
@@ -97,14 +120,17 @@ if final_state["errors"]:
 ### Stage-by-Stage Execution
 
 ```python
-from langchain_anthropic import ChatAnthropic
-from src.pipeline import create_pipeline
+from src.pipeline import create_pipeline, create_llm
 
-# Create LLM
-llm = ChatAnthropic(model="claude-sonnet-4-5", temperature=0.0)
+# Option 1: Create pipeline with default provider (DeepSeek)
+pipeline = create_pipeline()
 
-# Create pipeline
-pipeline = create_pipeline(llm)
+# Option 2: Create pipeline with specific provider
+pipeline = create_pipeline(provider="anthropic", model="claude-sonnet-4-5")
+
+# Option 3: Create custom LLM and pass it
+llm = create_llm(provider="deepseek", model="deepseek-chat")
+pipeline = create_pipeline(llm=llm)
 
 # Initialize state
 initial_state = {
@@ -128,6 +154,7 @@ final_state = pipeline.invoke(initial_state)
 
 ### Analyze a Script
 
+**Basic usage (uses DeepSeek by default):**
 ```bash
 python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 ```
@@ -136,6 +163,23 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 ```bash
 python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json \
   --output results/analysis_results.json
+```
+
+**Specify LLM provider:**
+```bash
+# Use DeepSeek (default)
+python -m src.cli analyze script.json --provider deepseek
+
+# Use Anthropic Claude
+python -m src.cli analyze script.json --provider anthropic
+
+# Use OpenAI
+python -m src.cli analyze script.json --provider openai
+```
+
+**Specify custom model:**
+```bash
+python -m src.cli analyze script.json --provider deepseek --model deepseek-chat
 ```
 
 ### Validate a Script
@@ -259,8 +303,17 @@ from src.pipeline import (
 
 #### Environment Variables
 
-- `ANTHROPIC_API_KEY`: Your Anthropic API key (required for LLM calls)
+**Required (choose one based on provider):**
+- `DEEPSEEK_API_KEY`: Your DeepSeek API key (default provider)
+- `ANTHROPIC_API_KEY`: Your Anthropic API key (if using Claude)
+- `OPENAI_API_KEY`: Your OpenAI API key (if using OpenAI)
+
+**Optional:**
+- `DEEPSEEK_BASE_URL`: DeepSeek API base URL (default: `https://api.deepseek.com/v1`)
+- `LLM_PROVIDER`: Default LLM provider (`deepseek`, `anthropic`, or `openai`)
 - `LOG_LEVEL`: Logging level (default: `INFO`)
+
+**All environment variables can be set in `.env` file (recommended).**
 
 #### Retry Configuration
 
@@ -358,16 +411,35 @@ if warnings:
 pip install -r requirements-test.txt
 ```
 
-### Issue: "ANTHROPIC_API_KEY not found"
+### Issue: "DEEPSEEK_API_KEY not found" (or other API key errors)
 
 **Solution:**
 ```bash
-# Create .env file with your API key
-echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+# Option 1: Create .env file (recommended)
+cp .env.example .env
+# Then edit .env and add your API key
 
-# Or export environment variable
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Option 2: Export environment variable
+export DEEPSEEK_API_KEY="your_key_here"
+
+# For other providers:
+export ANTHROPIC_API_KEY="your_key_here"
+export OPENAI_API_KEY="your_key_here"
 ```
+
+### Issue: DeepSeek API connection errors
+
+**Solution:**
+1. Check your API key is correct
+2. Check your internet connection
+3. Try setting a custom base URL if you're in a region with access restrictions:
+   ```bash
+   export DEEPSEEK_BASE_URL="https://api.deepseek.com/v1"
+   ```
+4. If issues persist, try using a different provider:
+   ```bash
+   python -m src.cli analyze script.json --provider openai
+   ```
 
 ### Issue: Tests are slow
 
