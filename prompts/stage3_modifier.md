@@ -64,10 +64,23 @@ Process issues in this order:
 2. **Medium severity**: Weakens structure (e.g., missing info_change)
 3. **Low severity**: Minor inconsistencies (e.g., typos in character names)
 
-## Issue Categories & Fix Patterns
+## Issue Categories & Fix Patterns (Comprehensive)
 
 ### Category 1: Broken Setup-Payoff Chain
-**Pattern**: Scene A references Scene B, but B doesn't reference A back
+
+#### Pattern 1A: One-Way Reference (Most Common)
+**Problem**: Scene A references Scene B, but B doesn't reference A back
+
+**Example Issue**:
+```json
+{
+  "issue_id": "ISS_001",
+  "severity": "high",
+  "category": "broken_setup_payoff",
+  "description": "S10 sets up for S20, but S20 has no payoff_from reference",
+  "affected_scenes": ["S10", "S20"]
+}
+```
 
 **Fix**:
 ```json
@@ -75,13 +88,78 @@ Process issues in this order:
 {"scene_id": "S10", "setup_payoff": {"setup_for": ["S20"], "payoff_from": []}}
 {"scene_id": "S20", "setup_payoff": {"setup_for": [], "payoff_from": []}}
 
-// After
+// After (add reciprocal reference)
 {"scene_id": "S10", "setup_payoff": {"setup_for": ["S20"], "payoff_from": []}}
 {"scene_id": "S20", "setup_payoff": {"setup_for": [], "payoff_from": ["S10"]}}
 ```
 
+#### Pattern 1B: Orphaned Payoff
+**Problem**: Scene B claims to payoff from Scene A, but A doesn't set up for B
+
+**Example Issue**:
+```json
+{
+  "issue_id": "ISS_002",
+  "severity": "medium",
+  "category": "broken_setup_payoff",
+  "description": "S25 pays off from S15, but S15 doesn't set up for S25",
+  "affected_scenes": ["S15", "S25"]
+}
+```
+
+**Fix**:
+```json
+// Before
+{"scene_id": "S15", "setup_payoff": {"setup_for": [], "payoff_from": ["S05"]}}
+{"scene_id": "S25", "setup_payoff": {"setup_for": [], "payoff_from": ["S15"]}}
+
+// After (add reciprocal setup)
+{"scene_id": "S15", "setup_payoff": {"setup_for": ["S25"], "payoff_from": ["S05"]}}
+{"scene_id": "S25", "setup_payoff": {"setup_for": [], "payoff_from": ["S15"]}}
+```
+
+#### Pattern 1C: Broken Chain (Multiple Scenes)
+**Problem**: A chain like S05→S10→S15 is incomplete
+
+**Example Issue**:
+```json
+{
+  "issue_id": "ISS_003",
+  "severity": "high",
+  "category": "broken_setup_payoff",
+  "description": "Chain S05→S10→S15 broken: S10 doesn't reference S05",
+  "affected_scenes": ["S05", "S10", "S15"]
+}
+```
+
+**Fix Strategy**:
+```json
+// Before (broken chain)
+{"scene_id": "S05", "setup_payoff": {"setup_for": ["S10"], "payoff_from": []}}
+{"scene_id": "S10", "setup_payoff": {"setup_for": ["S15"], "payoff_from": []}}  // Missing S05!
+{"scene_id": "S15", "setup_payoff": {"setup_for": [], "payoff_from": ["S10"]}}
+
+// After (repaired chain)
+{"scene_id": "S05", "setup_payoff": {"setup_for": ["S10"], "payoff_from": []}}
+{"scene_id": "S10", "setup_payoff": {"setup_for": ["S15"], "payoff_from": ["S05"]}}  // Fixed!
+{"scene_id": "S15", "setup_payoff": {"setup_for": [], "payoff_from": ["S10"]}}
+```
+
 ### Category 2: Missing Info Change
-**Pattern**: Key information is revealed but not tracked in `info_change`
+
+#### Pattern 2A: Revelation Not Tracked
+**Problem**: Key information is revealed in `key_events` but not tracked in `info_change`
+
+**Example Issue**:
+```json
+{
+  "issue_id": "ISS_004",
+  "severity": "medium",
+  "category": "missing_info_change",
+  "description": "S12 reveals major plot info but info_change is empty",
+  "affected_scenes": ["S12"]
+}
+```
 
 **Fix**:
 ```json
@@ -92,7 +170,7 @@ Process issues in this order:
   "info_change": []
 }
 
-// After
+// After (add info_change for all witnesses)
 {
   "scene_id": "S12",
   "key_events": ["哪吒 reveals 玉鼠精's products are fake"],
@@ -108,6 +186,50 @@ Process issues in this order:
   ]
 }
 ```
+
+#### Pattern 2B: Incomplete Character Coverage
+**Problem**: Information revealed to multiple characters but only some tracked
+
+**Example Issue**:
+```json
+{
+  "issue_id": "ISS_005",
+  "severity": "low",
+  "category": "missing_info_change",
+  "description": "S08: 3 characters present but only 1 has info_change entry",
+  "affected_scenes": ["S08"]
+}
+```
+
+**Fix**:
+```json
+// Before
+{
+  "scene_id": "S08",
+  "characters": ["悟空", "女娲", "哪吒"],
+  "key_events": ["悟空 discovers 玉鼠精's warehouse location"],
+  "info_change": [
+    {"character": "悟空", "learned": "Warehouse at 东海码头"}
+  ]
+}
+
+// After (add entries for other present characters)
+{
+  "scene_id": "S08",
+  "characters": ["悟空", "女娲", "哪吒"],
+  "key_events": ["悟空 discovers 玉鼠精's warehouse location"],
+  "info_change": [
+    {"character": "悟空", "learned": "Warehouse at 东海码头"},
+    {"character": "女娲", "learned": "Warehouse at 东海码头"},
+    {"character": "哪吒", "learned": "Warehouse at 东海码头"}
+  ]
+}
+```
+
+**Decision Rule**: Only add info_change if character is:
+1. Present in scene (`characters` list)
+2. Active participant (not unconscious, not in separate conversation)
+3. Information is visually/audibly accessible to them
 
 ### Category 3: Incomplete Relation Change
 **Pattern**: Relationship changes but not documented

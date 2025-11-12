@@ -29,30 +29,115 @@ Analyze the provided script JSON and identify all **independent** TCCs. Each TCC
 
 ### 1. TCC Identification Rules
 A valid TCC must have:
-- **Super-objective**: A clear, character-driven goal
+- **Super-objective**: A clear, character-driven goal or conflict
 - **Independent identity**: NOT merely the antagonistic force of another TCC
-- **Narrative presence**: Traceable across multiple scenes
+- **Narrative presence**: Traceable across multiple scenes (minimum 2)
+- **Causal impact**: Creates consequences that affect the story
 
-### 2. Anti-Pattern: Avoid Mirror TCCs
-❌ **WRONG**:
-- TCC_01: "玉鼠精 wants to get funding"
-- TCC_02: "悟空 wants to stop 玉鼠精"
-→ These are the SAME conflict from two perspectives
+### 2. Anti-Pattern: Avoid Mirror TCCs (Critical Rule)
 
-✅ **CORRECT**:
-- TCC_01: "玉鼠精's business plan vs. 悟空's investigation" (external conflict)
-- TCC_02: "悟空's identity crisis due to appearance" (internal conflict)
+**The Mirror TCC Problem**: The most common error is treating a single conflict as if it were two separate TCCs by viewing it from opposing perspectives.
 
-### 3. Evidence Priority (Fallback Strategy)
-Use in this order:
-1. **Primary**: `setup_payoff`, `relation_change`
-2. **Secondary**: `scene_mission`, `key_events`
-3. **Tertiary**: `characters` presence pattern
+❌ **WRONG EXAMPLES**:
+1. **Mirror by Opposition**:
+   - TCC_01: "玉鼠精 wants to get funding"
+   - TCC_02: "悟空 wants to stop 玉鼠精"
+   → These are the SAME conflict from two perspectives!
 
-### 4. Minimum Requirements
-- Identify at least **1 TCC**
-- Identify at most **5 TCCs** (if more exist, select the 5 strongest)
-- Each TCC must appear in at least **2 scenes**
+2. **Mirror by Obstacle**:
+   - TCC_01: "Character A tries to achieve X"
+   - TCC_02: "Character B acts as obstacle to A"
+   → Character B is the antagonist force in TCC_01, not a separate TCC!
+
+3. **Mirror by Reaction**:
+   - TCC_01: "Hero pursues villain"
+   - TCC_02: "Villain evades hero"
+   → These are two sides of the same chase!
+
+✅ **CORRECT EXAMPLES**:
+1. **External + Internal Conflict**:
+   - TCC_01: "玉鼠精's business plan vs. 悟空's investigation" (external, interpersonal)
+   - TCC_02: "悟空's identity crisis due to appearance bias" (internal)
+   → Different super-objectives, different conflict types
+
+2. **Multiple Independent Goals**:
+   - TCC_01: "Character A wants to save the town" (main plot)
+   - TCC_02: "Character B wants to reconcile with their parent" (subplot)
+   → Both have their own goals, not opposing each other
+
+3. **Intersecting but Distinct Conflicts**:
+   - TCC_01: "Company merger negotiation" (business conflict)
+   - TCC_02: "CEO's moral crisis about the merger" (ethical conflict)
+   → Both related to merger, but different conflict dimensions
+
+### 3. How to Distinguish Mirror from Independent TCCs
+
+**Ask these questions**:
+1. **Does each TCC have its own super-objective?**
+   - Mirror: One wants X, the other wants "not-X"
+   - Independent: One wants X, the other wants Y
+
+2. **Can you remove one TCC without eliminating the other?**
+   - Mirror: Removing one removes both (they're the same story)
+   - Independent: Each stands on its own
+
+3. **Do they represent different conflict dimensions?**
+   - Mirror: Both are interpersonal conflicts from opposite sides
+   - Independent: One is interpersonal, another is internal or ideological
+
+### 4. Three Types of Valid Independent TCCs
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Interpersonal** | External conflict between characters/factions | "Hero vs. Villain over control of the city" |
+| **Internal** | Character's inner struggle | "Hero's guilt over past actions" |
+| **Ideological** | Clash of values or worldviews | "Tradition vs. Innovation in leadership style" |
+
+**Key Insight**: Multiple interpersonal conflicts can coexist IF they involve different super-objectives (not mirror opposites).
+
+### 5. Evidence Priority (Fallback Strategy)
+
+**The Robustness Principle**: You must NEVER fail due to incomplete data. Always work with what's available.
+
+**Evidence Hierarchy** (use in order of reliability):
+
+| Priority | Fields | When to Use | Reliability |
+|----------|--------|-------------|-------------|
+| **Tier 1 (Primary)** | `setup_payoff`, `relation_change` | When available (>50% of scenes) | ✅ High - shows causal chains |
+| **Tier 2 (Secondary)** | `scene_mission`, `key_events` | When Tier 1 is sparse | ⚠️ Medium - requires inference |
+| **Tier 3 (Tertiary)** | `characters`, `info_change` | When Tier 1 & 2 are insufficient | 📊 Low - pattern-based only |
+
+**Fallback Protocol**:
+1. **Check Tier 1**: If `setup_payoff` is present in >50% of scenes → use it as primary evidence
+2. **Check Tier 2**: If Tier 1 is sparse → rely more on `scene_mission` and `key_events` to infer goals
+3. **Check Tier 3**: If Tier 2 is also sparse → track which characters co-appear in multiple scenes and infer conflicts from `info_change` patterns
+4. **Set metadata flag**: Always set `fallback_mode: true` and specify `fallback_reason` when using Tier 2 or Tier 3
+
+**Example Fallback Logic**:
+```python
+# Pseudocode for evidence selection
+if count(scenes with setup_payoff) / total_scenes > 0.5:
+    primary_evidence = "setup_payoff"
+    fallback_mode = False
+elif count(scenes with meaningful scene_mission) / total_scenes > 0.7:
+    primary_evidence = "scene_mission + key_events"
+    fallback_mode = True
+    fallback_reason = "setup_payoff sparse, using scene_mission"
+else:
+    primary_evidence = "character co-occurrence + info_change"
+    fallback_mode = True
+    fallback_reason = "insufficient setup_payoff and scene_mission, using character patterns"
+```
+
+### 6. Minimum Requirements
+- **Must identify at least 1 TCC** (even in sparse data scenarios)
+- **Should identify at most 5 TCCs** (if more exist, select the 5 with highest confidence)
+- **Each TCC must appear in at least 2 scenes** (single-scene conflicts are not TCCs)
+- **Confidence score must reflect evidence strength**:
+  - 0.9-1.0: Strong evidence across all tiers
+  - 0.7-0.89: Good evidence from Tier 1-2
+  - 0.5-0.69: Weak evidence, mostly Tier 3
+  - <0.5: Do not output (insufficient confidence)
 
 ## Output Schema
 ```json
