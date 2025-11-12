@@ -1,0 +1,170 @@
+{
+  "script_name": "百妖创业指南_ep09",
+  "annotation_source": "AI分析 + 编剧评论",
+  "annotation_date": "2025-11-12",
+
+  "expected_stage1_output": {
+    "tccs": [
+      {
+        "tcc_id": "TCC_01",
+        "super_objective": "玉鼠精的电商平台融资计划（及悟空的尽职调查）",
+        "core_conflict_type": "interpersonal",
+        "evidence_scenes": ["S03", "S04", "S05", "S10", "S12", "S28", "S34", "S42"],
+        "confidence_range": [0.90, 1.0],
+        "annotator_notes": "主线，贯穿全剧约30场，赌注最高（创业办是否投资），推动到结局（S42记者会是高潮）"
+      },
+      {
+        "tcc_id": "TCC_02",
+        "super_objective": "悟空因外表被误解的身份认同困境",
+        "core_conflict_type": "internal",
+        "evidence_scenes": ["S02", "S43"],
+        "confidence_range": [0.70, 0.85],
+        "annotator_notes": "B线，情感核心但场景占比少。编剧评论：'悟空人物立不住'、'丧感不够'，说明这条线在剧本中表现不足"
+      },
+      {
+        "tcc_id": "TCC_03",
+        "super_objective": "阿蠢的偶像崇拜幻灭",
+        "core_conflict_type": "internal",
+        "evidence_scenes": ["S03", "S12", "S28"],
+        "confidence_range": [0.80, 0.95],
+        "annotator_notes": "C线，主题映照（外表vs真相），可剥离但增加戏剧层次"
+      }
+    ],
+    "validation_rules": {
+      "must_identify_exactly_3_tccs": true,
+      "no_mirror_tccs": true,
+      "tcc_01_confidence_must_be_highest": true
+    }
+  },
+
+  "expected_stage2_output": {
+    "rankings": {
+      "a_line": {
+        "tcc_id": "TCC_01",
+        "reasoning": "占据最多场景（约30/43场），赌注最高（创业办投资决策），驱动到结局（S42记者会）",
+        "spine_score_range": [20.0, 30.0],
+        "forces": {
+          "protagonist": "玉鼠精的商业野心 + 李家势力支持",
+          "primary_antagonist": "悟空的背景调查 + 女娲的审核标准",
+          "dynamic_antagonist": ["哪吒的内部爆料", "玉面狐狸的反击", "受害者群体出现", "舆论战"]
+        }
+      },
+      "b_lines": [
+        {
+          "tcc_id": "TCC_02",
+          "reasoning": "情感核心（身份认同），与A线交叉影响（悟空对玉鼠精的偏见影响调查态度）",
+          "heart_score_range": [10.0, 15.0],
+          "a_line_interaction_required": true,
+          "forces": {
+            "protagonist": "悟空对公平对待的渴望",
+            "primary_antagonist": "社会对'凶恶外表'的偏见"
+          }
+        }
+      ],
+      "c_lines": [
+        {
+          "tcc_id": "TCC_03",
+          "reasoning": "主题映照（都是关于'外表vs真相'的故事），可剥离（删除后主线仍成立）",
+          "flavor_score_range": [8.0, 12.0],
+          "removable": true,
+          "forces": {
+            "protagonist": "阿蠢的理想主义和粉丝心态",
+            "primary_antagonist": "玉鼠精的真实面目（欺诈）"
+          }
+        }
+      ]
+    },
+    "validation_rules": {
+      "a_line_must_be_tcc_01": true,
+      "b_line_must_interact_with_a_line": true,
+      "spine_score_a_must_be_highest": true
+    }
+  },
+
+  "expected_stage3_output": {
+    "note": "让系统自己决定应该发现哪些问题（用户选择C）",
+    "possible_issues": [
+      {
+        "issue_id": "ISS_001",
+        "category": "broken_setup_payoff",
+        "description": "S02 setup for S43，但中间只有2场戏，缺少悟空身份认同线的过渡场景",
+        "severity": "high",
+        "affected_scenes": ["S02", "S43"],
+        "editor_comment": "编剧也提到'悟空人物立不住'、'丧感不够'，这是结构性问题的体现"
+      },
+      {
+        "issue_id": "ISS_002",
+        "category": "low_information_density",
+        "description": "某些场景信息量不足（编剧明确指出S16）",
+        "severity": "medium",
+        "editor_comment": "编剧评论：'废台词和过场戏略多，信息量不足'"
+      },
+      {
+        "issue_id": "ISS_003",
+        "category": "character_development",
+        "description": "悟空缺少高光时刻，人物弧光不明显",
+        "severity": "high",
+        "editor_comment": "编剧评论：'悟空这个人物立不住，全程几乎没有高光时刻'"
+      }
+    ],
+    "validation_rules": {
+      "system_decides_what_to_find": true,
+      "no_predetermined_expectations": true
+    }
+  },
+
+  "known_structural_issues": [
+    {
+      "source": "编剧评论",
+      "issue": "戏没有压着走，不能一步一步逼到高潮",
+      "category": "narrative_pacing"
+    },
+    {
+      "source": "编剧评论",
+      "issue": "废台词和过场戏略多，信息量不足",
+      "category": "scene_efficiency",
+      "example_scenes": ["S16"]
+    },
+    {
+      "source": "编剧评论",
+      "issue": "整体笑梗不够，投行行业笑点和美妆网红笑点都没做出来",
+      "category": "comedy"
+    },
+    {
+      "source": "编剧评论",
+      "issue": "孙悟空这个人物立不住，全程几乎没有高光时刻，也没有展现他的武力值和毒舌值，丧感也不够",
+      "category": "character_development",
+      "severity": "最大问题"
+    }
+  ],
+
+  "test_acceptance_criteria": {
+    "stage1": {
+      "must_pass": [
+        "识别出恰好3个TCCs",
+        "TCC_01的confidence最高（>0.90）",
+        "不应出现镜像TCC（如'女娲的审核 vs 玉鼠精的融资'）",
+        "所有evidence_scenes都是有效的scene_id"
+      ]
+    },
+    "stage2": {
+      "must_pass": [
+        "A-line是TCC_01",
+        "至少有1条B-line",
+        "B-line的a_line_interaction > 0.3",
+        "spine_score(A) > heart_score(B) > flavor_score(C)"
+      ]
+    },
+    "stage3": {
+      "must_pass": [
+        "至少识别出1个结构性问题",
+        "所有修改不应破坏原有scene结构",
+        "new_issues_introduced == 0"
+      ],
+      "nice_to_have": [
+        "识别出S02→S43的setup_payoff断链",
+        "识别出某些场景信息量不足"
+      ]
+    }
+  }
+}
