@@ -384,6 +384,114 @@ metrics = {
 }
 ```
 
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Issue 1: LLM Output Doesn't Match Schema
+**Symptom**: `ValidationError` when parsing LLM response
+
+**Solutions**:
+```python
+# Solution A: Add retry logic with validation feedback
+from tenacity import retry, stop_after_attempt
+
+@retry(stop=stop_after_attempt(3))
+def call_with_validation(prompt, schema):
+    response = llm.invoke(prompt)
+    try:
+        return schema.model_validate_json(response.content)
+    except ValidationError as e:
+        # Include validation error in next attempt
+        prompt += f"\n\nPrevious output had errors:\n{e}\nPlease fix and try again."
+        raise
+
+# Solution B: Use structured output (if supported by LLM)
+from langchain.output_parsers import PydanticOutputParser
+parser = PydanticOutputParser(pydantic_object=DiscovererOutput)
+```
+
+#### Issue 2: Low Confidence Scores
+**Symptom**: All TCCs have confidence < 0.7
+
+**Diagnosis**: Likely insufficient setup_payoff data
+
+**Solutions**:
+1. Check `metadata.fallback_mode` flag
+2. If `True`, review fallback logic in Stage 1
+3. Consider manually enhancing script data with setup_payoff entries
+
+#### Issue 3: Mirror TCCs Detected
+**Symptom**: `validate_tcc_independence()` returns warnings
+
+**Solutions**:
+```python
+from schemas import validate_tcc_independence
+
+warnings = validate_tcc_independence(discoverer_output.tccs)
+if warnings:
+    print("⚠️ Potential mirror conflicts detected:")
+    for warning in warnings:
+        print(f"  - {warning}")
+    # Manually review and remove mirror TCCs
+```
+
+#### Issue 4: Setup-Payoff Chain Broken
+**Symptom**: `validate_setup_payoff_integrity()` returns errors
+
+**Solutions**:
+```python
+from schemas import validate_setup_payoff_integrity
+
+errors = validate_setup_payoff_integrity(script)
+if errors:
+    print("❌ Setup-payoff integrity issues:")
+    for error in errors:
+        print(f"  - {error}")
+    # Run Stage 3 (Modifier) to fix automatically
+```
+
+---
+
+## Performance Tips
+
+### 1. Use Caching for Prompts
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def load_prompt(stage: str) -> str:
+    with open(f"prompts/stage{stage}.md") as f:
+        return f.read()
+```
+
+### 2. Batch Validation
+```python
+# Instead of validating each TCC individually
+for tcc in tccs:
+    validate(tcc)  # Slow
+
+# Validate all at once
+output = DiscovererOutput(tccs=tccs, metadata=metadata)  # Fast
+```
+
+### 3. Parallelize Independent Stages
+```python
+# If you have multiple scripts
+import asyncio
+
+async def process_script(script):
+    stage1 = await call_discoverer(script)
+    stage2 = await call_auditor(script, stage1)
+    stage3 = await call_modifier(script, stage2)
+    return stage3
+
+# Process multiple scripts in parallel
+results = await asyncio.gather(*[process_script(s) for s in scripts])
+```
+
+---
+
 ## FAQ
 
 **Q: Why not use the original prompts?**
@@ -394,6 +502,7 @@ A: Yes! Just ensure:
 - Output schema remains compatible
 - Version number is updated
 - Unit tests pass
+- Update this README with your changes
 
 **Q: What if LLM output doesn't match schema?**
 A: The system will retry with validation errors included in the prompt. After 3 failures, it logs for human review.
@@ -406,6 +515,27 @@ A:
 4. Write unit tests
 5. Update this README
 
+**Q: Which LLM model should I use?**
+A: Recommended models:
+- **Claude Sonnet 4.5** (best quality, highest cost)
+- **Claude Sonnet 3.5** (balanced)
+- **Claude Haiku 3.5** (fast, lower cost, suitable for well-defined tasks)
+
+**Q: How do I handle non-English scripts?**
+A: The prompts are language-agnostic. Just ensure your script JSON uses consistent language throughout.
+
+---
+
+## Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| **2.1-Refactored** | 2025-11-12 | • Enhanced Stage 1 with detailed mirror TCC patterns<br>• Added concrete calculation examples to Stage 2<br>• Expanded Stage 3 with comprehensive fix patterns<br>• Added utility functions to schemas.py<br>• Improved README with troubleshooting guide |
+| 2.0-Engineering | 2025-11-12 | Initial engineered prompts with schemas |
+| 1.0-Original | 2025-11-XX | Original non-technical prompts |
+
+---
+
 ## Support
 
 - **Documentation**: See main README.md
@@ -415,3 +545,4 @@ A:
 ---
 **Maintained by**: AI Engineering Team
 **Last Updated**: 2025-11-12
+**Version**: 2.1-Refactored

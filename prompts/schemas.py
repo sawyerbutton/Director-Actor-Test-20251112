@@ -74,10 +74,21 @@ class Script(BaseModel):
 class TCC(BaseModel):
     """Theatrical Conflict Chain."""
     tcc_id: str = Field(..., pattern=r"^TCC_\d{2}$")
-    super_objective: str = Field(..., min_length=10, max_length=100)
+    super_objective: str = Field(..., min_length=10, max_length=200,
+                                 description="Brief description of the TCC's super-objective")
     core_conflict_type: Literal["interpersonal", "internal", "ideological"]
-    evidence_scenes: List[str] = Field(..., min_length=2)
-    confidence: float = Field(..., ge=0.0, le=1.0)
+    evidence_scenes: List[str] = Field(..., min_length=2,
+                                       description="Scene IDs where this TCC appears")
+    confidence: float = Field(..., ge=0.0, le=1.0,
+                              description="Confidence score (0.5-1.0 for output)")
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence_minimum(cls, confidence: float) -> float:
+        """Ensure confidence is at least 0.5 for valid TCCs."""
+        if confidence < 0.5:
+            raise ValueError(f"Confidence {confidence} is too low (minimum 0.5)")
+        return confidence
 
     @field_validator("evidence_scenes")
     @classmethod
@@ -318,6 +329,105 @@ def validate_setup_payoff_integrity(script: Script) -> List[str]:
                 )
 
     return errors
+
+
+def calculate_setup_payoff_density(script: Script, scene_ids: List[str]) -> float:
+    """
+    Calculate setup-payoff density for a set of scenes.
+
+    Args:
+        script: The complete script
+        scene_ids: List of scene IDs to calculate density for
+
+    Returns:
+        Float between 0.0 and 1.0 representing density
+    """
+    scene_map = {scene.scene_id: scene for scene in script.scenes}
+    scenes_with_sp = 0
+
+    for sid in scene_ids:
+        if sid in scene_map:
+            scene = scene_map[sid]
+            if scene.setup_payoff.setup_for or scene.setup_payoff.payoff_from:
+                scenes_with_sp += 1
+
+    return scenes_with_sp / len(scene_ids) if scene_ids else 0.0
+
+
+def calculate_spine_score(scene_count: int, setup_payoff_density: float,
+                         drives_climax: bool = False) -> float:
+    """
+    Calculate spine score for A-line ranking.
+
+    Formula: scene_count × 2 + setup_payoff_density × 1.5 + (2 if drives_climax else 0)
+
+    Args:
+        scene_count: Number of scenes the TCC appears in
+        setup_payoff_density: Setup-payoff density (0.0-1.0)
+        drives_climax: Whether this TCC drives the climax
+
+    Returns:
+        Spine score (higher = more likely to be A-line)
+    """
+    base_score = scene_count * 2 + setup_payoff_density * 1.5
+    climax_bonus = 2.0 if drives_climax else 0.0
+    return base_score + climax_bonus
+
+
+def calculate_heart_score(emotional_intensity: float, a_line_interaction: float) -> float:
+    """
+    Calculate heart score for B-line ranking.
+
+    Formula: emotional_intensity × 10 + a_line_interaction × 5
+
+    Args:
+        emotional_intensity: Emotional intensity score (0.0-1.0)
+        a_line_interaction: Interaction with A-line score (0.0-1.0)
+
+    Returns:
+        Heart score (higher = more likely to be B-line)
+    """
+    return emotional_intensity * 10 + a_line_interaction * 5
+
+
+def calculate_a_line_interaction(tcc_scenes: List[str], a_line_scenes: List[str]) -> float:
+    """
+    Calculate interaction score between a TCC and the A-line.
+
+    Args:
+        tcc_scenes: Scene IDs for the TCC being evaluated
+        a_line_scenes: Scene IDs for the A-line
+
+    Returns:
+        Interaction score (0.0-1.0)
+    """
+    intersection = len(set(tcc_scenes) & set(a_line_scenes))
+    min_count = min(len(tcc_scenes), len(a_line_scenes))
+    return intersection / min_count if min_count > 0 else 0.0
+
+
+def validate_tcc_independence(tccs: List[TCC]) -> List[str]:
+    """
+    Validate that TCCs are truly independent (not mirror conflicts).
+
+    Returns a list of warnings about potential mirror TCCs.
+    """
+    warnings = []
+
+    # Check for overlapping scenes that might indicate mirror conflicts
+    for i, tcc1 in enumerate(tccs):
+        for tcc2 in tccs[i+1:]:
+            overlap = len(set(tcc1.evidence_scenes) & set(tcc2.evidence_scenes))
+            overlap_ratio = overlap / min(len(tcc1.evidence_scenes), len(tcc2.evidence_scenes))
+
+            if overlap_ratio > 0.8:
+                warnings.append(
+                    f"High overlap between {tcc1.tcc_id} and {tcc2.tcc_id} "
+                    f"({overlap_ratio:.1%}). May be mirror conflicts. "
+                    f"Check: '{tcc1.super_objective}' vs '{tcc2.super_objective}'"
+                )
+
+    return warnings
 
 
 # ============================================================================

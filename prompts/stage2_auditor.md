@@ -44,14 +44,20 @@ For each TCC, identify:
 - **Primary Antagonist Force**: The main stable opposition
 - **Dynamic Antagonist Force**: Situational/variable opposition (optional)
 
-## Calculation Methods
+## Calculation Methods (Detailed)
 
-### Scene Count
+### 1. Scene Count
 ```python
 scene_count = len(tcc["evidence_scenes"])
 ```
 
-### Setup-Payoff Density
+**Example**:
+- TCC_01 appears in scenes: ["S03", "S05", "S10", "S12", "S15"]
+- `scene_count = 5`
+
+---
+
+### 2. Setup-Payoff Density
 ```python
 setup_payoff_density = sum(
     1 for scene in tcc_scenes
@@ -59,12 +65,121 @@ setup_payoff_density = sum(
 ) / len(tcc_scenes)
 ```
 
-### A-line Interaction Score
+**Example**:
+- TCC_01 spans 5 scenes
+- Scenes with setup_payoff data: S03, S05, S10, S15 (4 scenes)
+- `setup_payoff_density = 4 / 5 = 0.80`
+
+**Interpretation**:
+- 0.8-1.0: Excellent causal structure
+- 0.5-0.79: Good structure
+- 0.3-0.49: Weak structure
+- <0.3: Poor structure (may need repair in Stage 3)
+
+---
+
+### 3. Spine Score (A-line Formula)
+```python
+spine_score = scene_count × 2 + setup_payoff_density × 1.5
+```
+
+**Example Calculation**:
+- TCC_01: `scene_count = 5`, `setup_payoff_density = 0.80`
+- `spine_score = 5 × 2 + 0.80 × 1.5 = 10 + 1.2 = 11.2`
+
+**Drives Climax Bonus** (optional):
+- If TCC appears in final 20% of scenes → add +2 to spine_score
+- Example: If script has 50 scenes and TCC_01 appears in S45-S50 → `spine_score = 11.2 + 2 = 13.2`
+
+**Comparison Example**:
+| TCC | Scene Count | Setup-Payoff Density | Base Spine Score | Drives Climax? | Final Spine Score |
+|-----|-------------|---------------------|------------------|----------------|------------------|
+| TCC_01 | 15 | 0.80 | 30 + 1.2 = 31.2 | Yes (+2) | **33.2** ← A-line |
+| TCC_02 | 8 | 0.65 | 16 + 0.975 = 16.975 | No | 16.975 |
+| TCC_03 | 5 | 0.40 | 10 + 0.6 = 10.6 | No | 10.6 |
+
+---
+
+### 4. A-line Interaction Score (for B-line candidates)
 ```python
 a_line_interaction = len(
     set(tcc_b_scenes) & set(a_line_scenes)
 ) / min(len(tcc_b_scenes), len(a_line_scenes))
 ```
+
+**Example Calculation**:
+- TCC_01 (A-line) appears in: ["S03", "S05", "S10", "S12", "S15", "S20", "S25"]
+- TCC_02 (B-line candidate) appears in: ["S05", "S10", "S18", "S25"]
+- Intersection: ["S05", "S10", "S25"] → 3 scenes
+- `a_line_interaction = 3 / min(7, 4) = 3 / 4 = 0.75`
+
+**Interpretation**:
+- 0.7-1.0: Strong B-line candidate (impacts A-line significantly)
+- 0.5-0.69: Moderate B-line candidate
+- 0.3-0.49: Weak B-line candidate
+- <0.3: Should be C-line (minimal A-line interaction)
+
+---
+
+### 5. Emotional Intensity (for B-line candidates)
+```python
+# Heuristic based on relation_change and internal conflict type
+emotional_intensity = (
+    (count_relation_changes_in_tcc_scenes / scene_count) × 0.5 +
+    (1.0 if core_conflict_type == "internal" else 0.3) × 0.5
+)
+```
+
+**Example Calculation**:
+- TCC_02 appears in 4 scenes
+- 3 of these scenes have `relation_change` entries
+- TCC_02 is an "internal" conflict type
+- `emotional_intensity = (3/4) × 0.5 + 1.0 × 0.5 = 0.375 + 0.5 = 0.875`
+
+---
+
+### 6. Heart Score (B-line Formula)
+```python
+heart_score = emotional_intensity × 10 + a_line_interaction × 5
+```
+
+**Example Calculation**:
+- TCC_02: `emotional_intensity = 0.875`, `a_line_interaction = 0.75`
+- `heart_score = 0.875 × 10 + 0.75 × 5 = 8.75 + 3.75 = 12.5`
+
+**Comparison Example**:
+| TCC | Emotional Intensity | A-line Interaction | Heart Score | B-line? |
+|-----|---------------------|-------------------|-------------|---------|
+| TCC_02 | 0.875 | 0.75 | **12.5** | ✅ Yes (rank #1) |
+| TCC_03 | 0.60 | 0.55 | 9.75 | ✅ Yes (rank #2) |
+| TCC_04 | 0.40 | 0.25 | 5.25 | ❌ No (C-line) |
+
+---
+
+### 7. Thematic Relevance (for C-line)
+```python
+# Heuristic: Does the TCC echo A-line themes without directly impacting it?
+# Manual judgment based on super_objectives comparison
+thematic_relevance = subjective_score  # 0.0-1.0
+```
+
+**Example**:
+- A-line theme: "Corporate fraud investigation"
+- TCC_03 super_objective: "Intern's disillusionment with idol worship"
+- Thematic connection: Both about "exposing false facades"
+- `thematic_relevance = 0.70`
+
+---
+
+### 8. Flavor Score (C-line Formula)
+```python
+flavor_score = thematic_relevance × 10 - removability_penalty
+# removability_penalty = 2 if removing TCC doesn't break A or B-line
+```
+
+**Example Calculation**:
+- TCC_03: `thematic_relevance = 0.70`, `removable = True` (penalty = 2)
+- `flavor_score = 0.70 × 10 - 2 = 7.0 - 2 = 5.0`
 
 ## Output Schema
 ```json
