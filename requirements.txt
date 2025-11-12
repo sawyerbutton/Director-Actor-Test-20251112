@@ -1,0 +1,16 @@
+# Core dependencies for Script Analysis System
+
+# Data validation
+pydantic>=2.0.0
+
+# LLM & LangChain ecosystem (for future pipeline)
+langchain>=0.1.0
+langchain-anthropic>=0.1.0
+langgraph>=0.0.40
+
+# Utilities
+python-dotenv>=1.0.0  # For API key management
+tenacity>=8.2.0  # Retry logic
+
+# Optional: For structured output parsing
+# langchain-core>=0.1.0
