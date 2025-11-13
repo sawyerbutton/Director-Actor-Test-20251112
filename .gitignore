@@ -56,3 +56,7 @@ _metrics.json
 
 # Misc
 =*
+
+# Generated reports
+reports/*.md
+!reports/.gitkeep
