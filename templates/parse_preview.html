@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Parse Result Preview - Script Analysis System{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>Parse Result Preview</h2>
+                    <p class="text-muted">File: <strong>{{ filename }}</strong></p>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Upload
+                    </a>
+                </div>
+            </div>
+
+            <!-- Parse Status Card -->
+            <div class="card mb-4" id="statusCard">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border text-primary me-3" role="status" id="spinner">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1" id="statusTitle">Parsing in Progress...</h5>
+                            <p class="card-text text-muted mb-0" id="statusMessage">Please wait while we parse your script...</p>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar"
+                             id="progressBar"
+                             style="width: 0%"
+                             aria-valuenow="0"
+                             aria-valuemin="0"
+                             aria-valuemax="100">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Tabs (Hidden until parsed) -->
+            <div id="previewContent" style="display: none;">
+                <!-- Action Buttons -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4>Parsed Script Preview</h4>
+                    <div>
+                        <button class="btn btn-primary" id="continueAnalysisBtn">
+                            <i class="bi bi-play-circle"></i> Continue to Analysis
+                        </button>
+                        <button class="btn btn-outline-secondary" id="downloadJsonBtn">
+                            <i class="bi bi-download"></i> Download JSON
+                        </button>
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs" id="previewTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
+                            <i class="bi bi-info-circle"></i> Overview
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="scenes-tab" data-bs-toggle="tab" data-bs-target="#scenes" type="button">
+                            <i class="bi bi-list-ol"></i> Scenes
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="characters-tab" data-bs-toggle="tab" data-bs-target="#characters" type="button">
+                            <i class="bi bi-people"></i> Characters
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="json-tab" data-bs-toggle="tab" data-bs-target="#json" type="button">
+                            <i class="bi bi-code-square"></i> Raw JSON
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content mt-3" id="previewTabContent">
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Script Statistics</h5>
+                                <div class="row mt-3">
+                                    <div class="col-md-4">
+                                        <div class="border rounded p-3 text-center">
+                                            <h3 class="mb-0" id="sceneCount">-</h3>
+                                            <p class="text-muted mb-0">Total Scenes</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="border rounded p-3 text-center">
+                                            <h3 class="mb-0" id="characterCount">-</h3>
+                                            <p class="text-muted mb-0">Total Characters</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="border rounded p-3 text-center">
+                                            <h3 class="mb-0" id="eventCount">-</h3>
+                                            <p class="text-muted mb-0">Key Events</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scenes Tab -->
+                    <div class="tab-pane fade" id="scenes" role="tabpanel">
+                        <div class="accordion" id="scenesAccordion">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Characters Tab -->
+                    <div class="tab-pane fade" id="characters" role="tabpanel">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Character List</h5>
+                                <div id="characterList" class="mt-3">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- JSON Tab -->
+                    <div class="tab-pane fade" id="json" role="tabpanel">
+                        <div class="card">
+                            <div class="card-body">
+                                <pre id="jsonPreview" class="bg-light p-3 rounded" style="max-height: 600px; overflow-y: auto;"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Card (Hidden by default) -->
+            <div class="alert alert-danger" id="errorCard" style="display: none;">
+                <h5 class="alert-heading">Parsing Failed</h5>
+                <p id="errorMessage"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Job ID from template
+const jobId = "{{ job_id }}";
+
+// Connect to WebSocket for real-time updates
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsUrl = `${protocol}//${window.location.host}/ws/progress/${jobId}`;
+const ws = new WebSocket(wsUrl);
+
+let parsedScript = null;
+
+ws.onopen = function() {
+    console.log('WebSocket connected for job:', jobId);
+};
+
+ws.onmessage = function(event) {
+    const message = JSON.parse(event.data);
+    console.log('Progress update:', message);
+
+    if (message.type === 'progress') {
+        updateProgress(message);
+    } else if (message.type === 'complete') {
+        handleComplete(message);
+    } else if (message.type === 'error') {
+        handleError(message);
+    }
+};
+
+ws.onerror = function(error) {
+    console.error('WebSocket error:', error);
+};
+
+ws.onclose = function() {
+    console.log('WebSocket disconnected');
+};
+
+function updateProgress(message) {
+    const { progress, message: msg } = message;
+
+    document.getElementById('progressBar').style.width = `${progress}%`;
+    document.getElementById('progressBar').textContent = `${progress}%`;
+    document.getElementById('progressBar').setAttribute('aria-valuenow', progress);
+    document.getElementById('statusMessage').textContent = msg;
+}
+
+function handleComplete(message) {
+    console.log('Parsing complete:', message);
+    parsedScript = message.parsed_script;
+
+    // Update progress to 100%
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressBar').textContent = '100%';
+    document.getElementById('progressBar').classList.remove('progress-bar-animated');
+    document.getElementById('progressBar').classList.add('bg-success');
+
+    // Hide spinner and update status
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('statusTitle').textContent = 'Parsing Complete!';
+    document.getElementById('statusMessage').textContent = 'Your script has been successfully parsed.';
+    document.getElementById('statusCard').classList.add('border-success');
+
+    // Show preview content
+    document.getElementById('previewContent').style.display = 'block';
+
+    // Populate preview
+    populatePreview(parsedScript);
+}
+
+function handleError(message) {
+    console.error('Parsing error:', message);
+
+    document.getElementById('statusCard').style.display = 'none';
+    document.getElementById('errorCard').style.display = 'block';
+    document.getElementById('errorMessage').textContent = message.message;
+}
+
+function populatePreview(script) {
+    // Populate overview statistics
+    const sceneCount = script.scenes ? script.scenes.length : 0;
+    const allCharacters = new Set();
+    let eventCount = 0;
+
+    if (script.scenes) {
+        script.scenes.forEach(scene => {
+            if (scene.characters) {
+                scene.characters.forEach(char => allCharacters.add(char));
+            }
+            if (scene.key_events) {
+                eventCount += scene.key_events.length;
+            }
+        });
+    }
+
+    document.getElementById('sceneCount').textContent = sceneCount;
+    document.getElementById('characterCount').textContent = allCharacters.size;
+    document.getElementById('eventCount').textContent = eventCount;
+
+    // Populate scenes accordion
+    if (script.scenes) {
+        const accordion = document.getElementById('scenesAccordion');
+        accordion.innerHTML = '';
+
+        script.scenes.forEach((scene, index) => {
+            const accordionItem = createSceneAccordionItem(scene, index);
+            accordion.appendChild(accordionItem);
+        });
+    }
+
+    // Populate character list
+    const characterList = document.getElementById('characterList');
+    characterList.innerHTML = '';
+
+    allCharacters.forEach(char => {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-primary me-2 mb-2';
+        badge.textContent = char;
+        characterList.appendChild(badge);
+    });
+
+    // Populate JSON preview
+    document.getElementById('jsonPreview').textContent = JSON.stringify(script, null, 2);
+}
+
+function createSceneAccordionItem(scene, index) {
+    const div = document.createElement('div');
+    div.className = 'accordion-item';
+
+    div.innerHTML = `
+        <h2 class="accordion-header">
+            <button class="accordion-button ${index > 0 ? 'collapsed' : ''}" type="button" data-bs-toggle="collapse" data-bs-target="#scene${index}">
+                <strong>${scene.scene_id}</strong>: ${scene.setting}
+            </button>
+        </h2>
+        <div id="scene${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" data-bs-parent="#scenesAccordion">
+            <div class="accordion-body">
+                <p><strong>Characters:</strong> ${scene.characters ? scene.characters.join(', ') : 'None'}</p>
+                <p><strong>Scene Mission:</strong> ${scene.scene_mission || 'Not specified'}</p>
+                ${scene.key_events && scene.key_events.length > 0 ? `
+                <p><strong>Key Events:</strong></p>
+                <ul>
+                    ${scene.key_events.map(event => `<li>${event}</li>`).join('')}
+                </ul>
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    return div;
+}
+
+// Continue to analysis button
+document.getElementById('continueAnalysisBtn').addEventListener('click', function() {
+    if (!parsedScript) {
+        alert('Script not yet parsed');
+        return;
+    }
+
+    // Redirect to analysis page
+    window.location.href = `/analysis-from-parsed/${jobId}`;
+});
+
+// Download JSON button
+document.getElementById('downloadJsonBtn').addEventListener('click', function() {
+    if (!parsedScript) {
+        alert('Script not yet parsed');
+        return;
+    }
+
+    const dataStr = JSON.stringify(parsedScript, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'parsed_script.json';
+    link.click();
+    URL.revokeObjectURL(url);
+});
+</script>
+{% endblock %}

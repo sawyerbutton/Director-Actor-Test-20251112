@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}上传剧本 - 剧本叙事结构分析系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <!-- Hero Section -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 mb-3">
+                <i class="bi bi-film text-primary"></i>
+                剧本叙事结构分析
+            </h1>
+            <p class="lead text-muted">
+                使用 AI 技术自动分析剧本的戏剧冲突链（TCC）、A/B/C线分级，并提供结构优化建议
+            </p>
+        </div>
+
+        <!-- Features -->
+        <div class="row mb-4">
+            <div class="col-md-4 text-center mb-3">
+                <div class="feature-icon bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 60px; height: 60px;">
+                    <i class="bi bi-search fs-4"></i>
+                </div>
+                <h6>发现 TCC</h6>
+                <small class="text-muted">自动识别戏剧冲突链</small>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+                <div class="feature-icon bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 60px; height: 60px;">
+                    <i class="bi bi-bar-chart fs-4"></i>
+                </div>
+                <h6>A/B/C 线分级</h6>
+                <small class="text-muted">智能评估故事重要性</small>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+                <div class="feature-icon bg-warning text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 60px; height: 60px;">
+                    <i class="bi bi-wrench fs-4"></i>
+                </div>
+                <h6>结构修正</h6>
+                <small class="text-muted">修复叙事结构问题</small>
+            </div>
+        </div>
+
+        <!-- Upload Form -->
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-cloud-upload"></i> 上传剧本文件
+                </h5>
+
+                <form id="uploadForm">
+                    <!-- File Type Selection -->
+                    <div class="mb-4">
+                        <label class="form-label">选择文件类型</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="fileType" id="fileTypeJSON" value="json" autocomplete="off" checked>
+                            <label class="btn btn-outline-primary" for="fileTypeJSON">
+                                <i class="bi bi-file-earmark-code"></i> JSON (已转换)
+                            </label>
+                            <input type="radio" class="btn-check" name="fileType" id="fileTypeTXT" value="txt" autocomplete="off">
+                            <label class="btn btn-outline-primary" for="fileTypeTXT">
+                                <i class="bi bi-file-text"></i> TXT (原始剧本)
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- File Upload -->
+                    <div class="mb-4">
+                        <label for="scriptFile" class="form-label" id="fileLabel">选择剧本文件 (JSON 格式)</label>
+                        <input class="form-control form-control-lg" type="file" id="scriptFile" accept=".json" required>
+                        <div class="form-text" id="fileHint">
+                            <i class="bi bi-info-circle"></i>
+                            <span id="hintText">支持的格式：JSON (符合 Script 数据模型)</span>
+                        </div>
+                    </div>
+
+                    <!-- LLM Enhancement (Only for TXT) -->
+                    <div class="mb-3" id="llmEnhancementDiv" style="display: none;">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useLLMEnhancement" checked>
+                            <label class="form-check-label" for="useLLMEnhancement">
+                                <strong>使用 LLM 语义增强</strong>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            <i class="bi bi-stars"></i>
+                            启用 LLM 增强可提取场景目标、关键事件等语义信息（推荐）
+                        </div>
+                    </div>
+
+                    <!-- LLM Provider -->
+                    <div class="mb-3">
+                        <label for="provider" class="form-label">选择 LLM 提供商</label>
+                        <select class="form-select" id="provider">
+                            <option value="deepseek" selected>DeepSeek (推荐)</option>
+                            <option value="anthropic">Anthropic Claude</option>
+                            <option value="openai">OpenAI</option>
+                        </select>
+                        <div class="form-text">
+                            <i class="bi bi-lightbulb"></i>
+                            DeepSeek 提供最佳性价比
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options (Collapsible) -->
+                    <div class="accordion mb-3" id="advancedOptions">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdvanced">
+                                    <i class="bi bi-gear"></i> 高级选项
+                                </button>
+                            </h2>
+                            <div id="collapseAdvanced" class="accordion-collapse collapse" data-bs-parent="#advancedOptions">
+                                <div class="accordion-body">
+                                    <!-- Model Name -->
+                                    <div class="mb-3">
+                                        <label for="model" class="form-label">模型名称 (可选)</label>
+                                        <input type="text" class="form-control" id="model" placeholder="留空使用默认模型">
+                                        <div class="form-text">例如: deepseek-chat, claude-3-sonnet-20240229</div>
+                                    </div>
+
+                                    <!-- Export Markdown -->
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="exportMarkdown" checked>
+                                        <label class="form-check-label" for="exportMarkdown">
+                                            生成 Markdown 报告
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="bi bi-play-circle"></i> 开始分析
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Error Alert -->
+                <div id="errorAlert" class="alert alert-danger mt-3 d-none" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span id="errorMessage"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage Instructions -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-question-circle"></i> 使用说明
+                </h6>
+                <ol class="small mb-0">
+                    <li>准备符合 Script 数据模型的 JSON 文件</li>
+                    <li>上传文件并选择 LLM 提供商</li>
+                    <li>点击"开始分析"，系统将自动运行三阶段流程</li>
+                    <li>分析完成后，查看 TCC 识别、A/B/C 线分级和结构优化建议</li>
+                    <li>可下载 Markdown 格式的完整分析报告</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/upload.js"></script>
+{% endblock %}

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}分析结果 - 剧本叙事结构分析系统{% endblock %}
+
+{% block extra_head %}
+<!-- Mermaid for flowchart visualization -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Success Header -->
+        <div class="alert alert-success mb-4" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-check-circle-fill fs-2 me-3"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">分析完成！</h5>
+                    <p class="mb-0">剧本结构分析已成功完成，以下是详细结果。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="d-flex gap-2 mb-4">
+            <a href="/api/download/report/{{ job_id }}" class="btn btn-primary">
+                <i class="bi bi-download"></i> 下载 Markdown 报告
+            </a>
+            <a href="/" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回首页
+            </a>
+            <button class="btn btn-outline-info" id="toggleRawData">
+                <i class="bi bi-code-square"></i> 查看原始数据
+            </button>
+        </div>
+
+        <!-- Summary Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-search text-primary fs-1"></i>
+                        <h3 class="mt-2" id="tccCount">-</h3>
+                        <p class="text-muted mb-0">识别的 TCC</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-star-fill text-warning fs-1"></i>
+                        <h3 class="mt-2" id="aLineCount">-</h3>
+                        <p class="text-muted mb-0">A 线（主线）</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-star-half text-info fs-1"></i>
+                        <h3 class="mt-2" id="bLineCount">-</h3>
+                        <p class="text-muted mb-0">B 线（副线）</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-star text-secondary fs-1"></i>
+                        <h3 class="mt-2" id="cLineCount">-</h3>
+                        <p class="text-muted mb-0">C 线（点缀）</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs for Different Views -->
+        <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
+                    <i class="bi bi-eye"></i> 概览
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tccs-tab" data-bs-toggle="tab" data-bs-target="#tccs" type="button">
+                    <i class="bi bi-list-ul"></i> TCC 详情
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="rankings-tab" data-bs-toggle="tab" data-bs-target="#rankings" type="button">
+                    <i class="bi bi-bar-chart"></i> 线级排序
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="modifications-tab" data-bs-toggle="tab" data-bs-target="#modifications" type="button">
+                    <i class="bi bi-wrench"></i> 结构修正
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="diagram-tab" data-bs-toggle="tab" data-bs-target="#diagram" type="button">
+                    <i class="bi bi-diagram-3"></i> 可视化
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="resultTabsContent">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-file-text"></i> 分析概览
+                        </h5>
+                        <div id="overviewContent">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TCCs Tab -->
+            <div class="tab-pane fade" id="tccs" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-list-ul"></i> 戏剧冲突链（TCC）详情
+                        </h5>
+                        <div id="tccList">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rankings Tab -->
+            <div class="tab-pane fade" id="rankings" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-bar-chart"></i> A/B/C 线分级
+                        </h5>
+                        <div id="rankingsContent">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modifications Tab -->
+            <div class="tab-pane fade" id="modifications" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-wrench"></i> 结构修正建议
+                        </h5>
+                        <div id="modificationsContent">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diagram Tab -->
+            <div class="tab-pane fade" id="diagram" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-diagram-3"></i> TCC 关系图
+                        </h5>
+                        <div id="mermaidDiagram" class="mermaid">
+                            graph TD
+                                Loading[正在生成图表...]
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Data (Collapsible) -->
+        <div class="card mt-4 d-none" id="rawDataCard">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-code-square"></i> 原始 JSON 数据
+                </h5>
+                <pre id="rawDataPre" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"><code id="rawDataCode"></code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden job_id -->
+<input type="hidden" id="jobId" value="{{ job_id }}">
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/results.js"></script>
+{% endblock %}

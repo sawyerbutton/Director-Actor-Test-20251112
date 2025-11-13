@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}分析进行中 - 剧本叙事结构分析系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <h2>
+                <i class="bi bi-hourglass-split text-primary"></i>
+                正在分析剧本
+            </h2>
+            <p class="text-muted">文件名: <strong>{{ filename }}</strong></p>
+        </div>
+
+        <!-- Progress Card -->
+        <div class="card shadow mb-4">
+            <div class="card-body p-4">
+                <!-- Overall Progress -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">整体进度</h6>
+                        <span class="badge bg-primary" id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar"
+                             id="progressBar"
+                             style="width: 0%"
+                             aria-valuenow="0"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Stage -->
+                <div class="alert alert-info mb-4" role="alert">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>当前阶段:</strong>
+                    <span id="currentStage">准备中...</span>
+                </div>
+
+                <!-- Stage Checklist -->
+                <div class="list-group">
+                    <div class="list-group-item" id="stage1-item">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-circle me-3 text-muted" id="stage1-icon"></i>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">阶段 1: 发现 TCC</h6>
+                                <small class="text-muted">识别戏剧冲突链（Theatrical Conflict Chain）</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="list-group-item" id="stage2-item">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-circle me-3 text-muted" id="stage2-icon"></i>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">阶段 2: 审计 A/B/C 线</h6>
+                                <small class="text-muted">评估故事线重要性并排序</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="list-group-item" id="stage3-item">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-circle me-3 text-muted" id="stage3-icon"></i>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">阶段 3: 修正结构</h6>
+                                <small class="text-muted">识别并修复叙事结构问题</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="list-group-item" id="export-item">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-circle me-3 text-muted" id="export-icon"></i>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">生成报告</h6>
+                                <small class="text-muted">导出 Markdown 格式分析报告</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-lightbulb"></i> 提示
+                </h6>
+                <ul class="small mb-0">
+                    <li>分析过程通常需要 30-120 秒，取决于剧本长度和 LLM 响应速度</li>
+                    <li>请保持此页面打开，实时进度通过 WebSocket 更新</li>
+                    <li>完成后将自动跳转到结果页面</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden job_id -->
+<input type="hidden" id="jobId" value="{{ job_id }}">
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/analysis.js"></script>
+{% endblock %}
