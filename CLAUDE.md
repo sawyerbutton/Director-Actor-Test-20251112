@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI
 
-**Current Version**: 2.2.0 (2025-11-13)
+**Current Version**: 2.3.0 (2025-11-13)
 **Last Updated**: 2025-11-13
-**Completion**: 100% (All three stages verified and operational + LangSmith observability + A/B testing)
+**Completion**: 100% (All three stages verified and operational + LangSmith observability + A/B testing + Markdown export)
 
 ---
 
@@ -45,6 +45,7 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **Error Handling**: Intelligent JSON parsing and schema validation with 0 retries
 - **🆕 LangSmith Observability**: ✅ Auto-tracing, performance metrics, cost estimation
 - **🆕 A/B Testing Framework**: ✅ Compare providers, prompts, and parameters
+- **🆕 Markdown Export** (v2.3.0): ✅ Professional reports + Mermaid visualization
 
 ### 🎉 Recent Fixes (2025-11-13)
 1. **Stage 2 JSON Parsing** (✅ FIXED)
@@ -239,6 +240,25 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - Automated evaluation
   - **Start here for**: Testing different configurations
 
+#### 🆕 Export System (v2.3.0)
+- **[`src/exporters/markdown_exporter.py`](src/exporters/markdown_exporter.py)** (232 lines)
+  - Markdown report generator
+  - Jinja2 template rendering
+  - Intelligent findings and recommendations
+  - **Start here for**: Report generation, customization
+
+- **[`src/exporters/mermaid_generator.py`](src/exporters/mermaid_generator.py)** (178 lines)
+  - Mermaid flowchart generator
+  - TCC relationship visualization
+  - A/B/C line color coding
+  - **Start here for**: Diagram generation, color schemes
+
+- **[`templates/report_template.md.j2`](templates/report_template.md.j2)** (211 lines)
+  - Jinja2 report template
+  - Markdown structure definition
+  - Customizable report layout
+  - **Start here for**: Report template modification
+
 #### Prompt System
 - **[`prompts/schemas.py`](prompts/schemas.py)**
   - Pydantic models for all data structures
@@ -345,6 +365,14 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - Features and architecture
   - **Start here for**: What was built
 
+#### 🆕 Export & Reporting (v2.3.0)
+- **[`docs/export-guide.md`](docs/export-guide.md)** (20+ pages)
+  - Complete export functionality guide
+  - Markdown report structure
+  - Mermaid visualization usage
+  - Report customization
+  - **Start here for**: Generating and customizing reports
+
 ### Examples
 - **[`examples/golden/`](examples/golden/)**
   - Golden dataset scripts for testing
@@ -416,6 +444,12 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 3. View detailed metrics in `_metrics` field of result
 4. Use `src/monitoring.py` for historical analysis
 
+### 🆕 Task: Generate Report (v2.3.0)
+1. Read [`docs/export-guide.md`](docs/export-guide.md) - Complete export guide
+2. Analyze script with export flag: `python -m src.cli analyze script.json --export report.md`
+3. View report in Markdown editor (VS Code, Obsidian, Typora)
+4. Customize template in `templates/report_template.md.j2` if needed
+
 ---
 
 ## Key Concepts
@@ -464,7 +498,14 @@ LangGraph-based orchestration with specialized agents.
 ├── src/                         # Source code
 │   ├── pipeline.py             # Core pipeline
 │   ├── cli.py                  # CLI interface
+│   ├── exporters/              # 🆕 Export system (v2.3.0)
+│   │   ├── __init__.py
+│   │   ├── markdown_exporter.py # Markdown report generator
+│   │   └── mermaid_generator.py # Mermaid diagram generator
 │   └── __init__.py
+│
+├── templates/                   # 🆕 Report templates (v2.3.0)
+│   └── report_template.md.j2  # Jinja2 Markdown template
 │
 ├── prompts/                     # Prompt system
 │   ├── stage1_discoverer.md    # Stage 1 prompt
@@ -581,12 +622,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.2.0
+**Project Version**: 2.3.0
 **Prompt Version**: 2.1-Refactored + Auto-Merge
-**Documentation Version**: 1.3 (Added LangSmith observability and A/B testing)
+**Documentation Version**: 1.4 (Added Markdown export and Mermaid visualization)
 **Last Updated**: 2025-11-13
-**Latest Commit**: TBD (feat: add LangSmith observability and A/B testing framework)
-**Completion Status**: 100% (All stages + observability + A/B testing - Production Ready)
+**Latest Commit**: TBD (feat: add Markdown report export with Mermaid visualization)
+**Completion Status**: 100% (All stages + observability + A/B testing + export - Production Ready)
 
 ---
 
