@@ -83,6 +83,68 @@ B线：悟空因外表被误解的'自我认同'困境
 - 修复断裂的`relation_change`
 - 完善`info_change`信息流
 
+### 🆕 新增功能（v2.2.0）
+
+#### 📊 LangSmith 可观测性
+**自动追踪和性能监控**：
+- ✅ 自动追踪每个 LLM 调用和 Agent 执行
+- ✅ 实时性能指标（执行时间、Token 使用、重试次数）
+- ✅ 成本估算（支持 DeepSeek/Claude/OpenAI）
+- ✅ 历史数据分析和趋势检测
+
+**快速开始**：
+```bash
+# 1. 配置 .env
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=ls__your_key
+
+# 2. 运行分析（自动追踪）
+python -m src.cli analyze script.json
+
+# 3. 查看 Dashboard
+open https://smith.langchain.com/
+```
+
+详见：[LangSmith 快速入门](docs/langsmith-quickstart.md) | [完整指南](docs/langsmith-integration.md)
+
+#### 🧪 A/B 测试框架
+**系统化对比不同配置**：
+- ✅ 对比 LLM 提供商（DeepSeek vs Claude vs OpenAI）
+- ✅ 对比 Temperature 参数（0.0 vs 0.7 等）
+- ✅ 对比 Prompt 版本（baseline vs optimized）
+- ✅ 自动评估和推荐最优配置
+
+**使用示例**：
+```bash
+# 对比 temperature
+python -m src.cli ab-test script.json --temperatures 0.0,0.7
+
+# 对比提供商
+python -m src.cli ab-test script.json --providers deepseek,anthropic
+
+# 多次运行取平均
+python -m src.cli ab-test script.json --variants v1,v2 --runs 3
+```
+
+**输出报告**：
+```
+================================================================================
+📊 A/B TEST COMPARISON REPORT
+================================================================================
+
+Variant         Success     Duration     TCCs     Confidence  Errors
+--------------------------------------------------------------------------------
+temp-0.0        ✅          124.41s       2       95.00%        0
+temp-0.7        ✅          131.20s       2       92.50%        0
+
+🏆 Winner: temp-0.0
+
+💡 RECOMMENDATION: Based on the test results, 'temp-0.0' is recommended.
+================================================================================
+```
+
+详见：[A/B 测试快速入门](docs/ab-testing-quickstart.md) | [完整指南](docs/ab-testing-guide.md)
+
 ## 🏗️ 技术架构
 
 ### Director-Actor模式

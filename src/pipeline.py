@@ -15,6 +15,7 @@ from typing import TypedDict, Annotated, Sequence, Optional, Union
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.tracers.context import tracing_v2_enabled
 from langgraph.graph import StateGraph, END, START
 from prompts.schemas import (
     Script, DiscovererOutput, AuditorOutput, ModifierOutput,
@@ -25,6 +26,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import logging
+from functools import wraps
+import time
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +35,142 @@ load_dotenv()
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# LangSmith configuration
+LANGSMITH_ENABLED = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true"
+LANGSMITH_PROJECT = os.getenv("LANGCHAIN_PROJECT", "screenplay-analysis-dev")
+
+
+# ============================================================================
+# Tracing & Metrics
+# ============================================================================
+
+class MetricsCollector:
+    """Collect and log metrics for observability."""
+
+    def __init__(self):
+        self.metrics = {
+            "stage_durations": {},
+            "llm_calls": {},
+            "retries": {},
+            "token_usage": {},
+            "validation_errors": {}
+        }
+
+    def record_stage_duration(self, stage: str, duration: float):
+        """Record duration for a stage."""
+        self.metrics["stage_durations"][stage] = duration
+        logger.info(f"📊 {stage} duration: {duration:.2f}s")
+
+    def record_llm_call(self, stage: str, tokens: Optional[int] = None):
+        """Record LLM call."""
+        if stage not in self.metrics["llm_calls"]:
+            self.metrics["llm_calls"][stage] = 0
+        self.metrics["llm_calls"][stage] += 1
+
+        if tokens:
+            if stage not in self.metrics["token_usage"]:
+                self.metrics["token_usage"][stage] = 0
+            self.metrics["token_usage"][stage] += tokens
+
+    def record_retry(self, stage: str):
+        """Record retry attempt."""
+        if stage not in self.metrics["retries"]:
+            self.metrics["retries"][stage] = 0
+        self.metrics["retries"][stage] += 1
+        logger.warning(f"🔄 Retry in {stage}: attempt #{self.metrics['retries'][stage]}")
+
+    def record_validation_error(self, stage: str, error: str):
+        """Record validation error."""
+        if stage not in self.metrics["validation_errors"]:
+            self.metrics["validation_errors"][stage] = []
+        self.metrics["validation_errors"][stage].append(error)
+
+    def get_summary(self) -> dict:
+        """Get metrics summary."""
+        return {
+            "total_duration": sum(self.metrics["stage_durations"].values()),
+            "total_llm_calls": sum(self.metrics["llm_calls"].values()),
+            "total_retries": sum(self.metrics["retries"].values()),
+            "total_tokens": sum(self.metrics["token_usage"].values()),
+            "stages": self.metrics["stage_durations"],
+            "calls_per_stage": self.metrics["llm_calls"],
+            "retries_per_stage": self.metrics["retries"],
+            "tokens_per_stage": self.metrics["token_usage"]
+        }
+
+    def log_summary(self):
+        """Log metrics summary."""
+        summary = self.get_summary()
+        logger.info("\n" + "=" * 60)
+        logger.info("📊 PERFORMANCE METRICS SUMMARY")
+        logger.info("=" * 60)
+        logger.info(f"Total Duration: {summary['total_duration']:.2f}s")
+        logger.info(f"Total LLM Calls: {summary['total_llm_calls']}")
+        logger.info(f"Total Retries: {summary['total_retries']}")
+        logger.info(f"Total Tokens: {summary['total_tokens']:,}")
+        logger.info("\nPer-Stage Breakdown:")
+        for stage in ["discoverer", "auditor", "modifier"]:
+            duration = summary['stages'].get(stage, 0)
+            calls = summary['calls_per_stage'].get(stage, 0)
+            retries = summary['retries_per_stage'].get(stage, 0)
+            tokens = summary['tokens_per_stage'].get(stage, 0)
+            logger.info(f"  {stage:12s}: {duration:6.2f}s | {calls} calls | {retries} retries | {tokens:,} tokens")
+        logger.info("=" * 60 + "\n")
+
+
+# Global metrics collector instance
+_metrics_collector = MetricsCollector()
+
+
+def get_metrics_collector() -> MetricsCollector:
+    """Get the global metrics collector."""
+    return _metrics_collector
+
+
+def trace_actor(stage_name: str):
+    """
+    Decorator to add tracing and metrics collection to Actor methods.
+
+    Args:
+        stage_name: Name of the stage (e.g., "discoverer", "auditor", "modifier")
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            metrics = get_metrics_collector()
+            start_time = time.time()
+
+            # Log stage start
+            logger.info(f"\n{'='*60}")
+            logger.info(f"🎬 Starting Stage: {stage_name.upper()}")
+            logger.info(f"{'='*60}")
+
+            try:
+                # Execute the function
+                result = func(*args, **kwargs)
+
+                # Record metrics
+                duration = time.time() - start_time
+                metrics.record_stage_duration(stage_name, duration)
+                metrics.record_llm_call(stage_name)
+
+                # Log stage completion
+                logger.info(f"✅ {stage_name.upper()} completed in {duration:.2f}s")
+
+                return result
+
+            except Exception as e:
+                # Record error metrics
+                duration = time.time() - start_time
+                metrics.record_stage_duration(f"{stage_name}_failed", duration)
+                metrics.record_validation_error(stage_name, str(e))
+
+                logger.error(f"❌ {stage_name.upper()} failed after {duration:.2f}s: {e}")
+                raise
+
+        return wrapper
+    return decorator
 
 
 # ============================================================================
@@ -239,9 +378,9 @@ class DiscovererActor:
         self.llm = llm
         self.prompt_template = load_prompt("1_discoverer")
 
+    @trace_actor("discoverer")
     def __call__(self, state: PipelineState) -> PipelineState:
         """Execute Stage 1: Discover TCCs."""
-        logger.info("=== Stage 1: Discoverer Actor ===")
 
         try:
             # Prepare input
@@ -307,9 +446,9 @@ class AuditorActor:
         self.llm = llm
         self.prompt_template = load_prompt("2_auditor")
 
+    @trace_actor("auditor")
     def __call__(self, state: PipelineState) -> PipelineState:
         """Execute Stage 2: Rank TCCs."""
-        logger.info("=== Stage 2: Auditor Actor ===")
 
         try:
             # Prepare input
@@ -362,9 +501,9 @@ class ModifierActor:
         self.llm = llm
         self.prompt_template = load_prompt("3_modifier")
 
+    @trace_actor("modifier")
     def __call__(self, state: PipelineState) -> PipelineState:
         """Execute Stage 3: Apply structural corrections."""
-        logger.info("=== Stage 3: Modifier Actor ===")
 
         try:
             # Generate audit report (simple version - real implementation would be more sophisticated)
@@ -576,16 +715,18 @@ def run_pipeline(
     script: Script,
     llm: Optional[BaseChatModel] = None,
     provider: str = "deepseek",
-    model: Optional[str] = None
+    model: Optional[str] = None,
+    run_name: Optional[str] = None
 ) -> PipelineState:
     """
-    Run the complete pipeline on a script.
+    Run the complete pipeline on a script with LangSmith tracing.
 
     Args:
         script: Input script to analyze
         llm: Optional LLM instance. If provided, provider and model are ignored.
         provider: LLM provider ("deepseek", "anthropic", "openai"). Default: "deepseek"
         model: Model name (optional, uses default for provider)
+        run_name: Optional name for this run (for LangSmith tracking)
 
     Returns:
         Final pipeline state with all outputs
@@ -597,9 +738,14 @@ def run_pipeline(
         # Use specific provider
         result = run_pipeline(script, provider="anthropic")
 
-        # Use custom LLM
-        result = run_pipeline(script, llm=custom_llm)
+        # Use custom LLM with run name
+        result = run_pipeline(script, llm=custom_llm, run_name="test-script-analysis")
     """
+    # Reset metrics collector for new run
+    global _metrics_collector
+    _metrics_collector = MetricsCollector()
+    metrics = get_metrics_collector()
+
     pipeline = create_pipeline(llm=llm, provider=provider, model=model)
 
     # Initialize state
@@ -614,20 +760,48 @@ def run_pipeline(
         "messages": []
     }
 
-    # Run pipeline
+    # Determine run name
+    if run_name is None:
+        run_name = f"screenplay-analysis-{script.title if hasattr(script, 'title') else 'untitled'}"
+
+    # Run pipeline with LangSmith tracing if enabled
     logger.info("🚀 Starting pipeline execution...")
-    final_state = pipeline.invoke(initial_state)
+    logger.info(f"📊 LangSmith Tracing: {'✅ ENABLED' if LANGSMITH_ENABLED else '❌ DISABLED'}")
+    if LANGSMITH_ENABLED:
+        logger.info(f"📊 Project: {LANGSMITH_PROJECT}")
+        logger.info(f"📊 Run Name: {run_name}")
+
+    start_time = time.time()
+
+    if LANGSMITH_ENABLED:
+        # Run with LangSmith tracing context
+        with tracing_v2_enabled(project_name=LANGSMITH_PROJECT):
+            final_state = pipeline.invoke(initial_state, {"run_name": run_name})
+    else:
+        # Run without tracing
+        final_state = pipeline.invoke(initial_state)
+
+    total_duration = time.time() - start_time
 
     # Log summary
+    logger.info("\n" + "=" * 60)
+    logger.info("🎬 PIPELINE EXECUTION COMPLETE")
     logger.info("=" * 60)
-    logger.info("Pipeline Execution Complete")
-    logger.info("=" * 60)
+    logger.info(f"Total Duration: {total_duration:.2f}s")
+    logger.info(f"Final Stage: {final_state['current_stage']}")
+
     if final_state["errors"]:
-        logger.warning(f"Errors encountered: {len(final_state['errors'])}")
+        logger.warning(f"⚠️  Errors encountered: {len(final_state['errors'])}")
         for error in final_state["errors"]:
             logger.warning(f"  - {error}")
     else:
         logger.info("✅ No errors")
+
+    # Log performance metrics summary
+    metrics.log_summary()
+
+    # Add metrics to final state for programmatic access
+    final_state["_metrics"] = metrics.get_summary()
 
     return final_state
 

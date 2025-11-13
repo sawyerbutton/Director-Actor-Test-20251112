@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI
 
-**Current Version**: 2.1.0 (2025-11-12)
+**Current Version**: 2.2.0 (2025-11-13)
 **Last Updated**: 2025-11-13
-**Completion**: 100% (All three stages verified and operational)
+**Completion**: 100% (All three stages verified and operational + LangSmith observability + A/B testing)
 
 ---
 
@@ -39,10 +39,12 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **Stage 1 (Discoverer)**: ✅ Successfully identifies TCCs with 85-95% confidence
 - **Stage 2 (Auditor)**: ✅ Ranks TCCs as A/B/C-lines with proper scoring
 - **Stage 3 (Modifier)**: ✅ Fixes structural issues (4/4 issues fixed in latest test)
-- **Dependencies**: All packages installed (LangChain 1.0.5, LangGraph 1.0.3)
+- **Dependencies**: All packages installed (LangChain 1.0.5, LangGraph 1.0.3, LangSmith 0.1+)
 - **DeepSeek Integration**: Configured and operational
-- **Documentation**: Complete reference docs (72KB across 7 files)
+- **Documentation**: Complete reference docs (100KB+ across 12+ files)
 - **Error Handling**: Intelligent JSON parsing and schema validation with 0 retries
+- **🆕 LangSmith Observability**: ✅ Auto-tracing, performance metrics, cost estimation
+- **🆕 A/B Testing Framework**: ✅ Compare providers, prompts, and parameters
 
 ### 🎉 Recent Fixes (2025-11-13)
 1. **Stage 2 JSON Parsing** (✅ FIXED)
@@ -220,10 +222,22 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - State management
   - **Start here for**: Pipeline logic, actor behavior
 
-- **[`src/cli.py`](src/cli.py)** (8,255 bytes)
+- **[`src/cli.py`](src/cli.py)** (11,500+ bytes)
   - Command-line interface
-  - Commands: analyze, validate, benchmark
+  - Commands: analyze, validate, benchmark, ab-test
   - **Start here for**: CLI usage, command implementation
+
+- **[`src/monitoring.py`](src/monitoring.py)** (12,000+ bytes)
+  - Metrics storage and analysis
+  - Cost estimation utilities
+  - Performance tracking
+  - **Start here for**: Observability, cost tracking
+
+- **[`src/ab_testing.py`](src/ab_testing.py)** (16,000+ bytes)
+  - A/B testing framework
+  - Variant comparison
+  - Automated evaluation
+  - **Start here for**: Testing different configurations
 
 #### Prompt System
 - **[`prompts/schemas.py`](prompts/schemas.py)**
@@ -292,6 +306,45 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - DeepSeek integration guide
   - **Start here for**: DeepSeek setup
 
+#### 🆕 Observability & Monitoring
+- **[`docs/langsmith-quickstart.md`](docs/langsmith-quickstart.md)** (3 pages)
+  - 5-minute LangSmith setup
+  - **Start here for**: Quick observability setup
+
+- **[`docs/langsmith-integration.md`](docs/langsmith-integration.md)** (15 pages)
+  - Complete LangSmith guide
+  - Configuration, usage, troubleshooting
+  - **Start here for**: Full observability features
+
+- **[`LANGSMITH_FEATURES.md`](docs/LANGSMITH_FEATURES.md)** (12 pages)
+  - Technical implementation details
+  - Architecture and design
+  - **Start here for**: Understanding how tracing works
+
+- **[`LANGSMITH_INTEGRATION_SUMMARY.md`](LANGSMITH_INTEGRATION_SUMMARY.md)** (11 pages)
+  - Development summary
+  - Completed features
+  - **Start here for**: What was implemented
+
+- **[`LANGSMITH_QUICKREF.md`](LANGSMITH_QUICKREF.md)** (1 page)
+  - Quick reference card
+  - **Start here for**: Command cheat sheet
+
+#### 🆕 A/B Testing
+- **[`docs/ab-testing-quickstart.md`](docs/ab-testing-quickstart.md)** (2 pages)
+  - 3-minute A/B testing tutorial
+  - **Start here for**: Quick A/B testing intro
+
+- **[`docs/ab-testing-guide.md`](docs/ab-testing-guide.md)** (18 pages)
+  - Complete A/B testing guide
+  - Use cases, best practices, examples
+  - **Start here for**: Comprehensive A/B testing
+
+- **[`AB_TESTING_SUMMARY.md`](AB_TESTING_SUMMARY.md)** (10 pages)
+  - A/B testing implementation summary
+  - Features and architecture
+  - **Start here for**: What was built
+
 ### Examples
 - **[`examples/golden/`](examples/golden/)**
   - Golden dataset scripts for testing
@@ -344,6 +397,24 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 2. Edit [`src/pipeline.py`](src/pipeline.py) - `create_llm()` function
 3. Update [`.env.example`](.env.example) with new variables
 4. Test integration
+
+### 🆕 Task: Enable LangSmith Tracing
+1. Read [`docs/langsmith-quickstart.md`](docs/langsmith-quickstart.md) - 5-minute setup
+2. Get API key from https://smith.langchain.com/
+3. Update `.env`: `LANGCHAIN_TRACING_V2=true` and add API key
+4. Run analysis - tracing is automatic
+
+### 🆕 Task: Run A/B Test
+1. Read [`docs/ab-testing-quickstart.md`](docs/ab-testing-quickstart.md) - 3-minute tutorial
+2. Compare providers: `python -m src.cli ab-test script.json --providers deepseek,anthropic`
+3. Compare temperatures: `python -m src.cli ab-test script.json --temperatures 0.0,0.7`
+4. Review results in terminal and `ab_tests/` directory
+
+### 🆕 Task: Analyze Performance Metrics
+1. Run analysis with LangSmith enabled
+2. Check terminal output for performance summary
+3. View detailed metrics in `_metrics` field of result
+4. Use `src/monitoring.py` for historical analysis
 
 ---
 
@@ -498,6 +569,7 @@ LangGraph-based orchestration with specialized agents.
 ### Technical Documentation
 - LangChain: https://python.langchain.com/docs/
 - LangGraph: https://langchain-ai.github.io/langgraph/
+- LangSmith: https://docs.smith.langchain.com/
 - Pydantic: https://docs.pydantic.dev/
 - pytest: https://docs.pytest.org/
 
@@ -509,12 +581,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.1.0
-**Prompt Version**: 2.1-Refactored
-**Documentation Version**: 1.2 (Updated with all fixes and 100% completion)
+**Project Version**: 2.2.0
+**Prompt Version**: 2.1-Refactored + Auto-Merge
+**Documentation Version**: 1.3 (Added LangSmith observability and A/B testing)
 **Last Updated**: 2025-11-13
-**Latest Commit**: 1a1fccb - docs: 更新项目文档反映测试验证结果和当前状态
-**Completion Status**: 100% (All stages verified and operational - Production Ready)
+**Latest Commit**: TBD (feat: add LangSmith observability and A/B testing framework)
+**Completion Status**: 100% (All stages + observability + A/B testing - Production Ready)
 
 ---
 

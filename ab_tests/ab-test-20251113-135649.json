@@ -1,0 +1,108 @@
+{
+  "test_id": "ab-test-20251113-135649",
+  "script_name": "百妖_ep09_s01-s05",
+  "variants": [
+    {
+      "name": "temp-0.0",
+      "prompt_version": null,
+      "provider": "deepseek",
+      "model": null,
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "metadata": {}
+    },
+    {
+      "name": "temp-0.7",
+      "prompt_version": null,
+      "provider": "deepseek",
+      "model": null,
+      "temperature": 0.7,
+      "max_tokens": 4096,
+      "metadata": {}
+    }
+  ],
+  "results": [
+    {
+      "variant": {
+        "name": "temp-0.0",
+        "prompt_version": null,
+        "provider": "deepseek",
+        "model": null,
+        "temperature": 0.0,
+        "max_tokens": 4096,
+        "metadata": {}
+      },
+      "success": true,
+      "duration": 231.11015629768372,
+      "metrics": {
+        "total_duration": 230.6166934967041,
+        "total_llm_calls": 3,
+        "total_retries": 0,
+        "total_tokens": 0,
+        "stages": {
+          "discoverer": 11.297755718231201,
+          "auditor": 38.400322914123535,
+          "modifier": 180.91861486434937
+        },
+        "calls_per_stage": {
+          "discoverer": 1,
+          "auditor": 1,
+          "modifier": 1
+        },
+        "retries_per_stage": {},
+        "tokens_per_stage": {}
+      },
+      "errors": [],
+      "tcc_count": 2,
+      "tcc_confidence_avg": 0.8999999999999999,
+      "stage_durations": {
+        "discoverer": 11.297755718231201,
+        "auditor": 38.400322914123535,
+        "modifier": 180.91861486434937
+      },
+      "timestamp": "2025-11-13T14:00:40.259654"
+    },
+    {
+      "variant": {
+        "name": "temp-0.7",
+        "prompt_version": null,
+        "provider": "deepseek",
+        "model": null,
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "metadata": {}
+      },
+      "success": true,
+      "duration": 135.2069571018219,
+      "metrics": {
+        "total_duration": 135.19839668273926,
+        "total_llm_calls": 3,
+        "total_retries": 0,
+        "total_tokens": 0,
+        "stages": {
+          "discoverer": -72.39663243293762,
+          "auditor": 32.140180587768555,
+          "modifier": 175.45484852790833
+        },
+        "calls_per_stage": {
+          "discoverer": 1,
+          "auditor": 1,
+          "modifier": 1
+        },
+        "retries_per_stage": {},
+        "tokens_per_stage": {}
+      },
+      "errors": [],
+      "tcc_count": 2,
+      "tcc_confidence_avg": 0.8999999999999999,
+      "stage_durations": {
+        "discoverer": -72.39663243293762,
+        "auditor": 32.140180587768555,
+        "modifier": 175.45484852790833
+      },
+      "timestamp": "2025-11-13T14:02:55.466654"
+    }
+  ],
+  "winner": "temp-0.7",
+  "timestamp": "2025-11-13T14:02:55.466691"
+}

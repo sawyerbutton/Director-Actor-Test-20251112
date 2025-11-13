@@ -5,6 +5,7 @@ Usage:
     python -m src.cli analyze <script.json> [--output results.json]
     python -m src.cli validate <script.json>
     python -m src.cli benchmark examples/golden/百妖_ep09_s01-s05.json
+    python -m src.cli ab-test <script.json> --variants baseline,optimized
 """
 
 import argparse
@@ -14,6 +15,7 @@ import os
 from pathlib import Path
 from prompts.schemas import Script, validate_setup_payoff_integrity
 from src.pipeline import run_pipeline
+from src.ab_testing import ABTestRunner, PromptVariant
 import logging
 from dotenv import load_dotenv
 
@@ -193,6 +195,106 @@ def cmd_benchmark(args):
         sys.exit(1)
 
 
+def cmd_ab_test(args):
+    """Run A/B test comparing multiple variants."""
+    logger.info(f"Running A/B test on: {args.script}")
+
+    try:
+        # Load script
+        script = load_script(args.script)
+        script_name = Path(args.script).stem
+
+        # Create runner
+        runner = ABTestRunner()
+
+        # Mode 1: Compare providers
+        if args.providers:
+            providers = args.providers.split(',')
+            logger.info(f"Comparing providers: {providers}")
+
+            comparison = runner.compare_providers(
+                script=script,
+                providers=providers,
+                script_name=script_name
+            )
+
+        # Mode 2: Compare named variants
+        elif args.variants:
+            variant_names = args.variants.split(',')
+            provider = args.provider or os.getenv("LLM_PROVIDER", "deepseek")
+
+            logger.info(f"Comparing variants: {variant_names}")
+
+            variants = [
+                PromptVariant(name=name, provider=provider)
+                for name in variant_names
+            ]
+
+            comparison = runner.compare_variants(
+                script=script,
+                variants=variants,
+                script_name=script_name,
+                runs_per_variant=args.runs
+            )
+
+        # Mode 3: Custom temperature comparison
+        elif args.temperatures:
+            temps = [float(t) for t in args.temperatures.split(',')]
+            provider = args.provider or os.getenv("LLM_PROVIDER", "deepseek")
+
+            logger.info(f"Comparing temperatures: {temps}")
+
+            variants = [
+                PromptVariant(
+                    name=f"temp-{temp}",
+                    provider=provider,
+                    temperature=temp
+                )
+                for temp in temps
+            ]
+
+            comparison = runner.compare_variants(
+                script=script,
+                variants=variants,
+                script_name=script_name,
+                runs_per_variant=args.runs
+            )
+
+        else:
+            logger.error("Please specify --variants, --providers, or --temperatures")
+            sys.exit(1)
+
+        # Print comparison
+        runner.print_comparison(comparison)
+
+        # Save detailed results if requested
+        if args.output:
+            output_path = Path(args.output)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(comparison.to_dict(), f, indent=2, ensure_ascii=False)
+            logger.info(f"Detailed results saved to: {output_path}")
+
+        # Print conclusion
+        print("\n💡 RECOMMENDATION")
+        print("="*80)
+        if comparison.winner:
+            print(f"Based on the test results, '{comparison.winner}' is recommended.")
+            winner_result = next(
+                r for r in comparison.results
+                if r.variant.name == comparison.winner
+            )
+            print(f"✅ Success rate: 100%")
+            print(f"⏱️  Average duration: {winner_result.duration:.2f}s")
+            print(f"🎯 TCC confidence: {winner_result.tcc_confidence_avg:.2%}")
+        else:
+            print("No clear winner. Please review the comparison table above.")
+        print("="*80 + "\n")
+
+    except Exception as e:
+        logger.error(f"A/B test failed: {e}", exc_info=True)
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -221,6 +323,20 @@ def main():
     parser_benchmark = subparsers.add_parser('benchmark', help='Run benchmark test')
     parser_benchmark.add_argument('script', help='Path to golden dataset script')
     parser_benchmark.set_defaults(func=cmd_benchmark)
+
+    # A/B test command
+    parser_abtest = subparsers.add_parser('ab-test', help='Run A/B test comparing variants')
+    parser_abtest.add_argument('script', help='Path to script JSON file')
+    parser_abtest.add_argument('--variants', help='Comma-separated variant names (e.g., baseline,optimized)')
+    parser_abtest.add_argument('--providers', help='Comma-separated provider names (e.g., deepseek,anthropic)')
+    parser_abtest.add_argument('--temperatures', help='Comma-separated temperatures (e.g., 0.0,0.5,0.7)')
+    parser_abtest.add_argument('--provider', '-p',
+                               choices=['deepseek', 'anthropic', 'openai'],
+                               help='Base provider for variant/temperature comparison')
+    parser_abtest.add_argument('--runs', '-r', type=int, default=1,
+                               help='Number of runs per variant (for averaging)')
+    parser_abtest.add_argument('--output', '-o', help='Output file for detailed results')
+    parser_abtest.set_defaults(func=cmd_ab_test)
 
     # Parse and execute
     args = parser.parse_args()
