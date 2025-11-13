@@ -156,7 +156,10 @@ def clean_json_response(content: str) -> str:
     """
     Clean LLM response to extract pure JSON.
 
-    Handles cases where LLM returns JSON wrapped in markdown code blocks.
+    Handles cases where:
+    1. LLM returns JSON wrapped in markdown code blocks
+    2. LLM adds explanatory text after the JSON
+    3. Multiple JSON objects are present (extracts the first complete one)
     """
     content = content.strip()
 
@@ -169,7 +172,47 @@ def clean_json_response(content: str) -> str:
     if content.endswith("```"):
         content = content[:-3]  # Remove trailing ```
 
-    return content.strip()
+    content = content.strip()
+
+    # Extract first complete JSON object/array
+    # This handles cases where LLM adds text after the JSON
+    if content.startswith('{') or content.startswith('['):
+        bracket_stack = []
+        in_string = False
+        escape_next = False
+        start_char = content[0]
+        end_char = '}' if start_char == '{' else ']'
+
+        for i, char in enumerate(content):
+            # Handle string escaping
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            # Handle string boundaries
+            if char == '"':
+                in_string = not in_string
+                continue
+
+            # Only count brackets outside of strings
+            if not in_string:
+                if char in '{[':
+                    bracket_stack.append(char)
+                elif char in '}]':
+                    if bracket_stack:
+                        bracket_stack.pop()
+                        # If stack is empty, we found the complete JSON
+                        if not bracket_stack:
+                            return content[:i+1]
+
+        # If we get here, return original content (might be incomplete but let validator handle it)
+        return content
+
+    return content
 
 
 # ============================================================================

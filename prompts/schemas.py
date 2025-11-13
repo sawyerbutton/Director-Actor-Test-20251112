@@ -137,6 +137,17 @@ class Forces(BaseModel):
     primary_antagonist: str = Field(..., min_length=5)
     dynamic_antagonist: Optional[List[str]] = None
 
+    @field_validator('dynamic_antagonist', mode='before')
+    @classmethod
+    def coerce_dynamic_antagonist_to_list(cls, v):
+        """Convert string to list if needed (LLM sometimes returns string instead of array)."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            # Convert single string to list
+            return [v]
+        return v
+
 
 class RankingReasoning(BaseModel):
     """Reasoning for ranking decision."""
@@ -241,10 +252,26 @@ class ModificationLogEntry(BaseModel):
     applied: bool
     scene_id: Optional[str] = None
     field: Optional[str] = None
-    change_type: Optional[Literal["add", "append", "update"]] = None
+    change_type: Optional[Literal["add", "append", "update", "remove", "delete"]] = None
     old_value: Optional[Any] = None
     new_value: Optional[Any] = None
     reason: Optional[str] = None
+
+    @field_validator('change_type', mode='before')
+    @classmethod
+    def normalize_change_type(cls, v):
+        """Normalize change_type values (LLM sometimes returns descriptive strings)."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v_lower = v.lower()
+            # Map various removal-related strings to 'remove'
+            if 'remove' in v_lower or 'delete' in v_lower or 'clear' in v_lower:
+                return 'remove'
+            # Map other common variants
+            if v_lower in ['add', 'append', 'update', 'remove', 'delete']:
+                return v_lower
+        return v
 
 
 class ModificationValidation(BaseModel):
