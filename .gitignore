@@ -60,3 +60,7 @@ _metrics.json
 # Generated reports
 reports/*.md
 !reports/.gitkeep
+
+# Web uploads (temporary files)
+static/uploads/*
+!static/uploads/.gitkeep
