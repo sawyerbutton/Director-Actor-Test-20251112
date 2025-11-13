@@ -387,13 +387,13 @@ class TestSceneValidation:
     def test_scene_id_pattern(self):
         """Test scene ID pattern validation."""
         # Valid patterns
-        Scene(scene_id="S01", setting="Test", characters=["A"], scene_mission="Test")
-        Scene(scene_id="S99", setting="Test", characters=["A"], scene_mission="Test")
-        Scene(scene_id="S100", setting="Test", characters=["A"], scene_mission="Test")
+        Scene(scene_id="S01", setting="Test", characters=["A"], scene_mission="Test mission description")
+        Scene(scene_id="S99", setting="Test", characters=["A"], scene_mission="Test mission description")
+        Scene(scene_id="S100", setting="Test", characters=["A"], scene_mission="Test mission description")
 
         # Invalid pattern
         with pytest.raises(ValidationError):
-            Scene(scene_id="INVALID", setting="Test", characters=["A"], scene_mission="Test")
+            Scene(scene_id="INVALID", setting="Test", characters=["A"], scene_mission="Test mission description")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,8 @@ class InfoChange(BaseModel):
 
 class RelationChange(BaseModel):
     """Relationship change between characters."""
+    model_config = {"populate_by_name": True}
+
     chars: List[str] = Field(..., min_length=2, max_length=2)
     from_: str = Field(..., alias="from", min_length=2)
     to: str = Field(..., min_length=2)

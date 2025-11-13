@@ -15,7 +15,7 @@ from typing import TypedDict, Annotated, Sequence, Optional, Union
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.language_models.chat_models import BaseChatModel
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END, START
 from prompts.schemas import (
     Script, DiscovererOutput, AuditorOutput, ModifierOutput,
     calculate_setup_payoff_density, validate_tcc_independence
@@ -149,6 +149,30 @@ def create_llm(
 
 
 # ============================================================================
+# Utility Functions
+# ============================================================================
+
+def clean_json_response(content: str) -> str:
+    """
+    Clean LLM response to extract pure JSON.
+
+    Handles cases where LLM returns JSON wrapped in markdown code blocks.
+    """
+    content = content.strip()
+
+    # Remove markdown code blocks
+    if content.startswith("```json"):
+        content = content[7:]  # Remove ```json
+    elif content.startswith("```"):
+        content = content[3:]  # Remove ```
+
+    if content.endswith("```"):
+        content = content[:-3]  # Remove trailing ```
+
+    return content.strip()
+
+
+# ============================================================================
 # Prompt Loading
 # ============================================================================
 
@@ -190,8 +214,9 @@ class DiscovererActor:
             logger.info("Calling LLM for TCC identification...")
             response = self.llm.invoke(messages)
 
-            # Parse and validate output
-            discoverer_output = DiscovererOutput.model_validate_json(response.content)
+            # Clean and parse output
+            cleaned_content = clean_json_response(response.content)
+            discoverer_output = DiscovererOutput.model_validate_json(cleaned_content)
 
             # Validate TCC independence
             warnings = validate_tcc_independence(discoverer_output.tccs)
@@ -249,7 +274,8 @@ class AuditorActor:
             response = self.llm.invoke(messages)
 
             # Parse and validate output
-            auditor_output = AuditorOutput.model_validate_json(response.content)
+            cleaned_content = clean_json_response(response.content)
+            auditor_output = AuditorOutput.model_validate_json(cleaned_content)
 
             # Update state
             state["auditor_output"] = auditor_output
@@ -343,7 +369,8 @@ class ModifierActor:
             response = self.llm.invoke(messages)
 
             # Parse and validate output
-            modifier_output = ModifierOutput.model_validate_json(response.content)
+            cleaned_content = clean_json_response(response.content)
+            modifier_output = ModifierOutput.model_validate_json(cleaned_content)
 
             # Update state
             state["modifier_output"] = modifier_output
@@ -448,7 +475,7 @@ def create_pipeline(
     workflow.add_node("modifier", modifier)
 
     # Add edges
-    workflow.add_edge("START", "discoverer")
+    workflow.add_edge(START, "discoverer")
     workflow.add_conditional_edges(
         "discoverer",
         should_continue_to_auditor,
