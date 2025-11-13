@@ -72,18 +72,37 @@ A valid TCC must have:
 
 ### 3. How to Distinguish Mirror from Independent TCCs
 
+**⚠️ CRITICAL RULE**: If two TCCs share 80%+ of the same scenes, they are likely **NOT** independent. One is probably the **antagonist force** (阻抗力) of the other, NOT a separate TCC.
+
 **Ask these questions**:
 1. **Does each TCC have its own super-objective?**
-   - Mirror: One wants X, the other wants "not-X"
-   - Independent: One wants X, the other wants Y
+   - ❌ Mirror/Antagonist: One wants X, the other wants "not-X" (e.g., "Get investment" vs "Block investment")
+   - ✅ Independent: One wants X, the other wants Y (e.g., "Get investment" vs "Overcome self-doubt")
 
 2. **Can you remove one TCC without eliminating the other?**
-   - Mirror: Removing one removes both (they're the same story)
-   - Independent: Each stands on its own
+   - ❌ Mirror: Removing one removes both (they're the same story)
+   - ✅ Independent: Each stands on its own
 
 3. **Do they represent different conflict dimensions?**
-   - Mirror: Both are interpersonal conflicts from opposite sides
-   - Independent: One is interpersonal, another is internal or ideological
+   - ❌ Mirror: Both are interpersonal conflicts from opposite sides
+   - ✅ Independent: One is interpersonal, another is internal or ideological
+
+4. **Do they appear in the same scenes?**
+   - ❌ If >80% scene overlap: Likely mirror/antagonist forces → Merge into ONE TCC
+   - ✅ If <50% scene overlap: Likely independent → Keep as separate TCCs
+
+**Example of Common Mistake**:
+```
+❌ WRONG (Mirror Conflicts):
+  - TCC_01: "玉鼠精寻求创业办投资" (玉鼠精 wants investment)
+  - TCC_03: "悟空阻止玉鼠精获得投资" (悟空 wants to block it)
+  → These are ONE TCC with 悟空 as the antagonist force!
+
+✅ CORRECT:
+  - TCC_01: "玉鼠精寻求创业办投资" (interpersonal, protagonist: 玉鼠精, antagonist: 悟空)
+  - TCC_02: "悟空的身份认同困境" (internal, protagonist: 悟空's inner conflict)
+  → These are truly independent (different dimensions)
+```
 
 ### 4. Three Types of Valid Independent TCCs
 

@@ -265,14 +265,29 @@ class DiscovererActor:
             warnings = validate_tcc_independence(discoverer_output.tccs)
             if warnings:
                 logger.warning(f"TCC independence warnings: {warnings}")
-                state["errors"].extend(warnings)
+                # Don't add to errors yet - we'll try to merge first
+
+            # Auto-merge mirror TCCs if overlap is very high (>90%)
+            from prompts.schemas import merge_mirror_tccs
+            merged_tccs, merge_logs = merge_mirror_tccs(discoverer_output.tccs, threshold=0.9)
+
+            if merge_logs:
+                logger.info("🔄 Auto-merging mirror TCCs:")
+                for log in merge_logs:
+                    logger.info(f"  {log}")
+                # Update the output with merged TCCs
+                discoverer_output.tccs = merged_tccs
+            else:
+                # Only add warnings if we couldn't auto-merge
+                if warnings:
+                    state["errors"].extend(warnings)
 
             # Update state
             state["discoverer_output"] = discoverer_output
             state["current_stage"] = "discoverer_completed"
             state["messages"] = messages + [response]
 
-            logger.info(f"✅ Identified {len(discoverer_output.tccs)} TCCs")
+            logger.info(f"✅ Identified {len(discoverer_output.tccs)} TCCs (after auto-merge)")
             for tcc in discoverer_output.tccs:
                 logger.info(f"  - {tcc.tcc_id}: {tcc.super_objective} (conf: {tcc.confidence:.2f})")
 

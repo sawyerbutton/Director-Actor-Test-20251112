@@ -459,6 +459,58 @@ def validate_tcc_independence(tccs: List[TCC]) -> List[str]:
     return warnings
 
 
+def merge_mirror_tccs(tccs: List[TCC], threshold: float = 0.9) -> tuple[List[TCC], List[str]]:
+    """
+    Automatically merge TCCs that have very high scene overlap (>threshold).
+
+    Args:
+        tccs: List of TCCs to check
+        threshold: Overlap ratio threshold for merging (default: 0.9 = 90%)
+
+    Returns:
+        Tuple of (merged_tccs, merge_logs)
+    """
+    if len(tccs) <= 1:
+        return tccs, []
+
+    merged = []
+    skip_indices = set()
+    merge_logs = []
+
+    for i, tcc1 in enumerate(tccs):
+        if i in skip_indices:
+            continue
+
+        # Find TCCs that should be merged with tcc1
+        to_merge = [tcc1]
+
+        for j, tcc2 in enumerate(tccs[i+1:], start=i+1):
+            if j in skip_indices:
+                continue
+
+            overlap = len(set(tcc1.evidence_scenes) & set(tcc2.evidence_scenes))
+            overlap_ratio = overlap / min(len(tcc1.evidence_scenes), len(tcc2.evidence_scenes))
+
+            if overlap_ratio >= threshold:
+                to_merge.append(tcc2)
+                skip_indices.add(j)
+                merge_logs.append(
+                    f"Merged {tcc2.tcc_id} into {tcc1.tcc_id} (overlap: {overlap_ratio:.1%})"
+                )
+
+        # If multiple TCCs were merged, keep the one with highest confidence
+        if len(to_merge) > 1:
+            best_tcc = max(to_merge, key=lambda t: t.confidence)
+            merged.append(best_tcc)
+            merge_logs.append(
+                f"Kept {best_tcc.tcc_id} as representative (confidence: {best_tcc.confidence:.2f})"
+            )
+        else:
+            merged.append(tcc1)
+
+    return merged, merge_logs
+
+
 # ============================================================================
 # Example Usage
 # ============================================================================
