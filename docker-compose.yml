@@ -5,8 +5,6 @@
 # Purpose: Simplified deployment of screenplay analysis system with Web UI
 # ============================================================================
 
-version: '3.8'
-
 services:
   # ==========================================================================
   # Main Application Service
@@ -18,7 +16,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8014:8000"
     environment:
       # Python settings
       - PYTHONUNBUFFERED=1

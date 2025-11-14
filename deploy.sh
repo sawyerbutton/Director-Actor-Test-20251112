@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 IMAGE_NAME="screenplay-analysis"
 IMAGE_TAG="latest"
 CONTAINER_NAME="screenplay-web"
-PORT=8000
+PORT=8014
 
 # Helper functions
 log_info() {
