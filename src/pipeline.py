@@ -297,21 +297,45 @@ def clean_json_response(content: str) -> str:
 
     Handles cases where:
     1. LLM returns JSON wrapped in markdown code blocks
-    2. LLM adds explanatory text after the JSON
-    3. Multiple JSON objects are present (extracts the first complete one)
+    2. LLM adds explanatory text before the JSON (e.g., "Here is the result:")
+    3. LLM adds explanatory text after the JSON (e.g., "Hope this helps!")
+    4. Multiple JSON objects are present (extracts the first complete one)
+
+    Returns:
+        Cleaned JSON string ready for parsing
     """
+    original_content = content
     content = content.strip()
 
     # Remove markdown code blocks
     if content.startswith("```json"):
+        logger.debug("Removing ```json markdown wrapper")
         content = content[7:]  # Remove ```json
     elif content.startswith("```"):
+        logger.debug("Removing ``` markdown wrapper")
         content = content[3:]  # Remove ```
 
     if content.endswith("```"):
+        logger.debug("Removing trailing ``` markdown")
         content = content[:-3]  # Remove trailing ```
 
     content = content.strip()
+
+    # Handle leading explanatory text (e.g., "Here is the result: {...")
+    # Look for the first { or [ character
+    first_brace = content.find('{')
+    first_bracket = content.find('[')
+
+    if first_brace > 0 or first_bracket > 0:
+        # There's text before the JSON
+        start_pos = first_brace if first_brace >= 0 else float('inf')
+        if first_bracket >= 0:
+            start_pos = min(start_pos, first_bracket)
+
+        if start_pos > 0 and start_pos != float('inf'):
+            leading_text = content[:int(start_pos)]
+            logger.debug(f"Removing leading explanatory text: {leading_text[:50]}...")
+            content = content[int(start_pos):]
 
     # Extract first complete JSON object/array
     # This handles cases where LLM adds text after the JSON
@@ -346,11 +370,22 @@ def clean_json_response(content: str) -> str:
                         bracket_stack.pop()
                         # If stack is empty, we found the complete JSON
                         if not bracket_stack:
-                            return content[:i+1]
+                            cleaned = content[:i+1]
 
-        # If we get here, return original content (might be incomplete but let validator handle it)
+                            # Check if there's trailing text
+                            if i+1 < len(content):
+                                trailing = content[i+1:].strip()
+                                if trailing:
+                                    logger.debug(f"Removed trailing text: {trailing[:50]}...")
+
+                            return cleaned
+
+        # If we get here, brackets don't match - log warning
+        logger.warning("JSON brackets don't match - returning as-is for validator to handle")
         return content
 
+    # No JSON structure found
+    logger.warning("No JSON structure found in LLM response")
     return content
 
 

@@ -463,7 +463,36 @@ If modification fails:
 - **MUST** not add creative content
 - **SHOULD** fix 80%+ of high severity issues
 
+## Critical Output Format Rules
+
+⚠️ **STRICT JSON OUTPUT ONLY** ⚠️
+
+1. **Output ONLY the JSON object** - Do not add any explanatory text before or after the JSON
+2. **Do NOT wrap JSON in markdown code blocks** - No ```json``` or ``` markers
+3. **Do NOT add comments** - JSON does not support comments
+4. **Start output with `{`** - First character must be opening brace
+5. **End output with `}`** - Last character must be closing brace
+6. **No trailing text** - Do not add "Here is the result:", "Hope this helps!", or any other text
+
+✅ **CORRECT Output**:
+```
+{"modified_script":{"scenes":[...]},"modification_log":[...],"validation":{...}}
+```
+
+❌ **INCORRECT Output**:
+```
+Here is the corrected script:
+
+```json
+{"modified_script":{"scenes":[...]},"modification_log":[...],"validation":{...}}
+```
+
+I've successfully fixed 14 out of 15 issues. Let me know if you need further clarification!
+```
+
+**Remember**: The parser expects pure JSON. Any additional text will cause parsing errors and require retries.
+
 ---
-**Version**: 2.0-Engineering
-**Last Updated**: 2025-11-12
+**Version**: 2.1-Engineering
+**Last Updated**: 2025-11-14
 **Compatible With**: Pydantic 2.x, LangGraph 0.2.x
