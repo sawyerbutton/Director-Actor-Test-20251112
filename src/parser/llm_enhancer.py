@@ -38,17 +38,20 @@ class LLMEnhancedParser(TXTScriptParser):
        - key_events
     """
 
-    def __init__(self, llm: BaseChatModel, batch_size: int = 5):
+    def __init__(self, llm: BaseChatModel, batch_size: int = 5, progress_callback=None):
         """
         Initialize LLM Enhanced Parser.
 
         Args:
             llm: Language model for semantic extraction
             batch_size: Number of scenes to process in parallel (for optimization)
+            progress_callback: Optional async callback for progress updates
+                              Signature: async callback(current: int, total: int, message: str)
         """
         super().__init__()
         self.llm = llm
         self.batch_size = batch_size
+        self.progress_callback = progress_callback
 
         # Load prompts
         self.prompts = self._load_prompts()
@@ -97,6 +100,7 @@ class LLMEnhancedParser(TXTScriptParser):
         # Step 2: Enhance each scene with LLM
         logger.info(f"Step 2: Enhancing {len(script.scenes)} scenes with LLM...")
         enhanced_scenes = []
+        total_scenes = len(script.scenes)
 
         for idx, scene in enumerate(script.scenes):
             # Get original scene text
@@ -105,6 +109,17 @@ class LLMEnhancedParser(TXTScriptParser):
             logger.info(f"Enhancing scene {scene.scene_id}...")
             enhanced_scene = self._enhance_scene(scene, scene_text, script.scenes)
             enhanced_scenes.append(enhanced_scene)
+
+            # Report progress if callback provided
+            if self.progress_callback:
+                import asyncio
+                asyncio.create_task(
+                    self.progress_callback(
+                        current=idx + 1,
+                        total=total_scenes,
+                        message=f"Enhanced scene {scene.scene_id} ({idx + 1}/{total_scenes})"
+                    )
+                )
 
         # Create enhanced script
         enhanced_script = Script(scenes=enhanced_scenes)

@@ -516,11 +516,24 @@ async def run_parsing_job(
         from src.parser import TXTScriptParser, LLMEnhancedParser
         from src.pipeline import create_llm
 
+        # Define progress callback for LLM enhancement
+        async def on_scene_progress(current: int, total: int, message: str):
+            """Report scene-by-scene progress during LLM enhancement."""
+            # Calculate progress: 20% base + 70% for scene enhancement (20-90%)
+            scene_progress = 20 + int(70 * current / total)
+            active_jobs[job_id]["progress"] = scene_progress
+            await manager.send_progress(job_id, {
+                "type": "progress",
+                "stage": "parsing",
+                "progress": scene_progress,
+                "message": message
+            })
+
         # Choose parser based on enhancement flag
         if use_llm_enhancement:
             # Create LLM
             llm = create_llm(provider=provider, model=model)
-            parser = LLMEnhancedParser(llm=llm)
+            parser = LLMEnhancedParser(llm=llm, progress_callback=on_scene_progress)
 
             # Update progress for LLM enhancement
             active_jobs[job_id]["progress"] = 20
