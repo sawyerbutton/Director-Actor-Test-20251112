@@ -1,0 +1,95 @@
+# ============================================================================
+# Docker Compose Configuration for Script Analysis System
+# ============================================================================
+# Version: 2.4.0
+# Purpose: Simplified deployment of screenplay analysis system with Web UI
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # Main Application Service
+  # ==========================================================================
+  web:
+    image: screenplay-analysis:latest
+    container_name: screenplay-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Python settings
+      - PYTHONUNBUFFERED=1
+
+      # Application settings (override via .env file)
+      - LLM_PROVIDER=${LLM_PROVIDER:-deepseek}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+      # LLM API Keys (loaded from .env)
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+      # LangSmith observability (optional)
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-screenplay-analysis-prod}
+    volumes:
+      # Mount .env file (read-only)
+      - ./.env:/app/.env:ro
+
+      # Persistent data volume
+      - screenplay-data:/data
+
+      # Optional: Mount local examples for testing
+      - ./examples:/app/examples:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - screenplay-net
+
+# ==========================================================================
+# Networks
+# ==========================================================================
+networks:
+  screenplay-net:
+    driver: bridge
+
+# ==========================================================================
+# Volumes
+# ==========================================================================
+volumes:
+  screenplay-data:
+    driver: local
+
+# ============================================================================
+# Usage Instructions:
+# ============================================================================
+#
+# 1. Build and start:
+#    docker-compose up -d --build
+#
+# 2. View logs:
+#    docker-compose logs -f web
+#
+# 3. Stop service:
+#    docker-compose down
+#
+# 4. Stop and remove volumes:
+#    docker-compose down -v
+#
+# 5. Rebuild image:
+#    docker-compose build --no-cache
+#
+# 6. Access service:
+#    http://localhost:8000
+#
+# ============================================================================

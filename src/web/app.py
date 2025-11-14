@@ -104,6 +104,17 @@ class AnalysisResponse(BaseModel):
 
 
 # Routes
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker and load balancers."""
+    return {
+        "status": "healthy",
+        "service": "screenplay-analysis",
+        "version": "2.4.0",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render home page with upload form."""
