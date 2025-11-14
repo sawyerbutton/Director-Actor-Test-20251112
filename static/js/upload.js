@@ -103,6 +103,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Upload and parse TXT file
                 console.log('Uploading TXT file to:', `${endpoint}?${params}`);
+
+                // Update button to show uploading
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>上传中...';
+
                 const response = await fetch(`${endpoint}?${params}`, {
                     method: 'POST',
                     body: formData
@@ -117,7 +121,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     throw new Error(data.detail || '上传失败');
                 }
 
-                // Redirect to parse preview page
+                // Update button to show redirecting
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>跳转中...';
+
+                // Redirect to parse preview page immediately
                 console.log('Redirecting to:', `/parse-preview/${data.job_id}`);
                 window.location.href = `/parse-preview/${data.job_id}`;
 

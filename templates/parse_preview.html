@@ -371,14 +371,39 @@ function createSceneAccordionItem(scene, index) {
 }
 
 // Continue to analysis button
-document.getElementById('continueAnalysisBtn').addEventListener('click', function() {
+document.getElementById('continueAnalysisBtn').addEventListener('click', async function() {
     if (!parsedScript) {
         alert('Script not yet parsed');
         return;
     }
 
-    // Redirect to analysis page
-    window.location.href = `/analysis-from-parsed/${jobId}`;
+    const btn = this;
+    const originalText = btn.innerHTML;
+
+    try {
+        // Disable button and show loading
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>启动分析中...';
+
+        // Start analysis by calling the endpoint
+        const response = await fetch(`/analysis-from-parsed/${jobId}`);
+
+        if (!response.ok) {
+            throw new Error('Failed to start analysis');
+        }
+
+        // Update button text
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>跳转中...';
+
+        // Redirect directly to analysis page (no intermediate page)
+        window.location.href = `/analysis/${jobId}`;
+
+    } catch (error) {
+        console.error('Error starting analysis:', error);
+        alert('启动分析失败，请重试');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
 });
 
 // Download JSON button
