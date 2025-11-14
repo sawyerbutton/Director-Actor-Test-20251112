@@ -43,7 +43,7 @@ class SetupPayoff(BaseModel):
 
 class Scene(BaseModel):
     """A single scene in the script."""
-    scene_id: str = Field(..., pattern=r"^S\d{2,3}$")
+    scene_id: str = Field(..., pattern=r"^S\d{2,3}[a-z]?$")  # Allow optional lowercase letter suffix for duplicate IDs
     setting: str = Field(..., min_length=1)
     characters: List[str] = Field(..., min_length=1)
     scene_mission: str = Field(..., min_length=10)

@@ -807,9 +807,28 @@ LangGraph-based orchestration with specialized agents.
 - **Cause**: 5 LLM calls per scene, sequential processing
 - **Solution**: Disable LLM enhancement for faster basic parse, or use faster LLM model
 
+### Issue: Web UI - Parse Preview Stuck on "Parsing in Progress..."
+- **Cause**: WebSocket serialization error (Script object not JSON serializable)
+- **Solution**: Fixed in Session 7 - WebSocket now sends summary stats instead of full Script object
+- **Workaround**: Polling fallback mechanism automatically activates if WebSocket fails
+- **Files**: `src/web/app.py:408-449, 490-497`, `templates/parse_preview.html:194-238`
+
+### Issue: Web UI - Upload Page Not Redirecting After TXT Upload
+- **Cause**: Browser caching old JavaScript, or JavaScript error preventing redirect
+- **Solution**:
+  1. Hard refresh browser (Ctrl+Shift+R or Cmd+Shift+R)
+  2. Open browser DevTools Console (F12)
+  3. Check for errors in console
+  4. Verify debug logs show "Redirecting to: /parse-preview/..."
+- **Files**: `static/js/upload.js:104-122` (debug logs added in Session 7)
+
 ### Issue: Web UI - WebSocket Connection Failed
 - **Cause**: Network issues or browser compatibility
-- **Solution**: Check browser console, try different browser, check firewall settings
+- **Solution**:
+  - Check browser console for WebSocket errors
+  - Polling fallback will automatically activate (every 2 seconds)
+  - Try different browser
+  - Check firewall settings
 
 ---
 

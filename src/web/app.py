@@ -77,9 +77,12 @@ class ConnectionManager:
         """Send progress update to client."""
         if job_id in self.active_connections:
             try:
+                # Log message content for debugging
+                logger.debug(f"Sending progress for job {job_id}: {message}")
                 await self.active_connections[job_id].send_json(message)
             except Exception as e:
                 logger.error(f"Error sending progress for job {job_id}: {e}")
+                logger.error(f"Message that failed: {message}")
                 self.disconnect(job_id)
 
 manager = ConnectionManager()
@@ -244,6 +247,35 @@ async def parse_txt_script(
         raise HTTPException(status_code=500, detail=f"TXT upload failed: {str(e)}")
 
 
+@app.get("/api/parsed-script/{job_id}")
+async def get_parsed_script(job_id: str):
+    """Get parsed script data for a completed TXT parsing job."""
+    if job_id not in active_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job = active_jobs[job_id]
+
+    if job["status"] == "failed":
+        raise HTTPException(status_code=400, detail=job.get("error", "Parsing failed"))
+
+    if job["status"] != "parsed":
+        # Still parsing
+        return {
+            "status": "parsing",
+            "progress": job.get("progress", 0)
+        }
+
+    # Parsing complete - return script data
+    script = job.get("script")
+    if not script:
+        raise HTTPException(status_code=500, detail="Parsed script not available")
+
+    return {
+        "status": "complete",
+        "script": script.model_dump()
+    }
+
+
 @app.get("/parse-preview/{job_id}", response_class=HTMLResponse)
 async def parse_preview_page(request: Request, job_id: str):
     """Render parsing preview page for TXT files."""
@@ -381,10 +413,32 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
     try:
         # Send initial status
         if job_id in active_jobs:
-            await manager.send_progress(job_id, {
-                "type": "status",
-                "data": active_jobs[job_id]
-            })
+            job = active_jobs[job_id]
+            # Create a serializable version of job data without Script object
+            job_data = {
+                "job_id": job["job_id"],
+                "filename": job["filename"],
+                "status": job["status"],
+                "progress": job.get("progress", 0),
+                "stage": job.get("stage", ""),
+                "created_at": job.get("created_at", "")
+            }
+
+            # If parsing is complete, indicate success
+            if job["status"] == "parsed":
+                await manager.send_progress(job_id, {
+                    "type": "complete",
+                    "stage": "parsed",
+                    "progress": 100,
+                    "message": "Script parsed successfully!",
+                    "scene_count": len(job["script"].scenes) if "script" in job else 0,
+                    "character_count": len(set(char for scene in job["script"].scenes for char in scene.characters)) if "script" in job else 0
+                })
+            else:
+                await manager.send_progress(job_id, {
+                    "type": "status",
+                    "data": job_data
+                })
 
         # Keep connection alive
         while True:
@@ -430,7 +484,7 @@ async def run_parsing_job(
         # Choose parser based on enhancement flag
         if use_llm_enhancement:
             # Create LLM
-            llm = create_llm(provider=provider, model_name=model)
+            llm = create_llm(provider=provider, model=model)
             parser = LLMEnhancedParser(llm=llm)
 
             # Update progress for LLM enhancement
@@ -463,7 +517,8 @@ async def run_parsing_job(
             "stage": "parsed",
             "progress": 100,
             "message": "Script parsed successfully!",
-            "parsed_script": script.model_dump()
+            "scene_count": len(script.scenes),
+            "character_count": len(set(char for scene in script.scenes for char in scene.characters))
         })
 
         logger.info(f"Parsing complete for job {job_id}")

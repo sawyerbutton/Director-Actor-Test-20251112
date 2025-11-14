@@ -160,6 +160,7 @@ const wsUrl = `${protocol}//${window.location.host}/ws/progress/${jobId}`;
 const ws = new WebSocket(wsUrl);
 
 let parsedScript = null;
+let pollingInterval = null;
 
 ws.onopen = function() {
     console.log('WebSocket connected for job:', jobId);
@@ -180,11 +181,61 @@ ws.onmessage = function(event) {
 
 ws.onerror = function(error) {
     console.error('WebSocket error:', error);
+    // Start polling as fallback
+    startPolling();
 };
 
 ws.onclose = function() {
     console.log('WebSocket disconnected');
+    // Start polling as fallback
+    startPolling();
 };
+
+// Polling fallback mechanism
+function startPolling() {
+    if (pollingInterval) return; // Already polling
+
+    console.log('Starting polling fallback...');
+    pollingInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/parsed-script/${jobId}`);
+            const data = await response.json();
+
+            if (data.status === 'complete') {
+                clearInterval(pollingInterval);
+                handleCompleteFromAPI(data.script);
+            } else if (data.status === 'parsing') {
+                updateProgress({ progress: data.progress, message: 'Parsing in progress...' });
+            }
+        } catch (error) {
+            console.error('Polling error:', error);
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+// Handle completion from API (instead of WebSocket)
+function handleCompleteFromAPI(script) {
+    console.log('Parsing complete (from API):', script);
+    parsedScript = script;
+
+    // Update progress to 100%
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressBar').textContent = '100%';
+    document.getElementById('progressBar').classList.remove('progress-bar-animated');
+    document.getElementById('progressBar').classList.add('bg-success');
+
+    // Hide spinner and update status
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('statusTitle').textContent = 'Parsing Complete!';
+    document.getElementById('statusMessage').textContent = 'Your script has been successfully parsed.';
+    document.getElementById('statusCard').classList.add('border-success');
+
+    // Show preview content
+    document.getElementById('previewContent').style.display = 'block';
+
+    // Populate preview
+    populatePreview(parsedScript);
+}
 
 function updateProgress(message) {
     const { progress, message: msg } = message;
@@ -195,10 +246,29 @@ function updateProgress(message) {
     document.getElementById('statusMessage').textContent = msg;
 }
 
-function handleComplete(message) {
-    console.log('Parsing complete:', message);
-    parsedScript = message.parsed_script;
+async function handleComplete(message) {
+    console.log('Parsing complete (WebSocket):', message);
 
+    // If parsed_script is in the message, use it directly
+    if (message.parsed_script) {
+        parsedScript = message.parsed_script;
+        showCompletionUI();
+    } else {
+        // Otherwise, fetch from API
+        try {
+            const response = await fetch(`/api/parsed-script/${jobId}`);
+            const data = await response.json();
+            if (data.status === 'complete') {
+                parsedScript = data.script;
+                showCompletionUI();
+            }
+        } catch (error) {
+            console.error('Failed to fetch parsed script:', error);
+        }
+    }
+}
+
+function showCompletionUI() {
     // Update progress to 100%
     document.getElementById('progressBar').style.width = '100%';
     document.getElementById('progressBar').textContent = '100%';

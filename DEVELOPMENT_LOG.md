@@ -387,5 +387,95 @@ DEVELOPMENT_LOG.md (本文件)
 
 ---
 
-**最后更新**: 2025-11-13
-**下次更新**: Phase 2 完成后
+### Session 7: Bug 修复 - WebSocket 和前端跳转问题
+
+#### 完成工作
+1. ✅ **诊断 WebSocket 序列化问题**
+   - **问题**: WebSocket 发送完成消息时试图序列化 Script 对象失败
+   - **错误**: `Object of type Script is not JSON serializable`
+   - **位置**: `src/web/app.py:408-449`
+
+2. ✅ **修复 WebSocket 初始状态消息**
+   - 创建干净的 job_data 字典（不包含 Script 对象）
+   - 只发送可序列化字段（job_id, filename, status, progress等）
+   - 对于完成状态，发送摘要统计（scene_count, character_count）
+
+3. ✅ **修复 WebSocket 完成消息**
+   - **位置**: `src/web/app.py:490-497`
+   - 发送场景数和角色数统计，而非完整 Script 对象
+   - 添加 type="complete" 标记
+
+4. ✅ **添加 API 端点用于获取解析结果**
+   - **新端点**: `/api/parsed-script/{job_id}`
+   - **位置**: `src/web/app.py:247-273`
+   - 返回完整的 Script 数据（JSON 格式）
+   - 支持解析中和完成状态
+
+5. ✅ **实现前端轮询回退机制**
+   - **位置**: `templates/parse_preview.html:194-214`
+   - 当 WebSocket 失败时自动启动轮询
+   - 每 2 秒检查一次解析状态
+   - 轮询成功后调用 `handleCompleteFromAPI()`
+
+6. ✅ **增强前端完成处理**
+   - **位置**: `templates/parse_preview.html:216-238, 249-269`
+   - 新增 `handleCompleteFromAPI()` 函数
+   - 修改 `handleComplete()` 为异步，支持 API 回退
+   - 如果 WebSocket 消息中没有数据，从 API 获取
+
+7. ✅ **添加前端调试日志**
+   - **位置**: `static/js/upload.js:104-122, 152-160`
+   - 记录上传 URL、响应状态、响应数据
+   - 记录跳转目标 URL
+   - 增强错误捕获（包含堆栈跟踪）
+
+8. ✅ **修复 WebSocket 日志**
+   - **位置**: `src/web/app.py:76-86`
+   - 添加调试日志以诊断序列化失败
+   - 记录消息内容和错误详情
+
+#### 技术实现
+- **双重容错机制**: WebSocket + 轮询回退
+- **分离数据传输**: 状态通知 vs 完整数据
+- **智能降级**: WebSocket 失败 → 轮询 → API 获取
+- **调试增强**: 全流程日志记录
+
+#### 测试结果
+```
+✅ 后端解析正常 (45 场景 LLM 增强)
+✅ WebSocket 消息发送成功
+✅ 轮询回退机制工作
+✅ API 端点返回完整数据
+⏳ 前端跳转问题需用户测试（浏览器缓存）
+```
+
+#### 遗留问题
+- ⚠️ 浏览器可能缓存旧版 JavaScript
+- ⚠️ 需要用户硬刷新 (Ctrl+Shift+R)
+- ⚠️ 调试日志仅在新版 JS 加载后生效
+
+#### 用户操作指南
+1. 清除浏览器缓存（Ctrl+Shift+R）
+2. 打开开发者工具控制台
+3. 重新上传 TXT 文件
+4. 观察控制台日志输出
+5. 报告任何错误信息
+
+#### 关键修复点
+| 问题 | 解决方案 | 文件位置 |
+|------|---------|----------|
+| WebSocket 序列化失败 | 分离状态消息和数据传输 | `src/web/app.py:408-449, 490-497` |
+| 完成数据获取 | 新增 API 端点 | `src/web/app.py:247-273` |
+| WebSocket 失败回退 | 轮询机制 | `templates/parse_preview.html:194-214` |
+| 前端调试盲区 | 添加详细日志 | `static/js/upload.js:104-122` |
+
+#### 经验教训
+1. **序列化陷阱**: 不要在 WebSocket/API 响应中直接传递 Pydantic 对象
+2. **容错设计**: 实时通信应有降级方案（WebSocket → 轮询）
+3. **调试优先**: 关键流程需要详细日志（尤其是异步操作）
+4. **浏览器缓存**: 前端更新需考虑缓存清除机制
+
+---
+
+**最后更新**: 2025-11-14
+**下次更新**: 用户测试反馈后

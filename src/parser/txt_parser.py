@@ -80,7 +80,9 @@ class TXTScriptParser(ScriptParser):
 
         # Parse each scene
         scenes = []
+        scene_id_counts = {}  # Track scene ID usage for deduplication
         valid_scene_idx = 1
+
         for block in scene_blocks:
             # Skip empty or separator-only blocks
             if not block.strip() or len(block.strip()) < 5:
@@ -88,6 +90,17 @@ class TXTScriptParser(ScriptParser):
 
             scene = self._parse_scene(block, valid_scene_idx)
             if scene:
+                # Handle duplicate scene IDs
+                original_id = scene.scene_id
+                if original_id in scene_id_counts:
+                    # Add suffix for duplicate IDs
+                    scene_id_counts[original_id] += 1
+                    suffix = chr(ord('a') + scene_id_counts[original_id] - 1)  # a, b, c...
+                    scene.scene_id = f"{original_id}{suffix}"
+                    logger.warning(f"Duplicate scene ID '{original_id}' found, renamed to '{scene.scene_id}'")
+                else:
+                    scene_id_counts[original_id] = 1
+
                 scenes.append(scene)
                 valid_scene_idx += 1
 
@@ -204,11 +217,14 @@ class TXTScriptParser(ScriptParser):
         # LLM enhancement will add scene_mission, setup_payoff, etc.
         from prompts.schemas import SetupPayoff
 
+        # Ensure scene_mission has at least 10 characters for validation
+        scene_mission = description if description and len(description) >= 10 else "待LLM提取场景任务目标"
+
         scene = Scene(
             scene_id=scene_id,
             setting=scene_setting or "待识别",          # Required field
             characters=list(set(characters)),          # Remove duplicates
-            scene_mission=description or "待LLM提取场景目标",  # Placeholder
+            scene_mission=scene_mission,               # Placeholder with minimum length
             key_events=[],                             # Will be filled by LLM
             setup_payoff=SetupPayoff(),                # Empty SetupPayoff object
             relation_change=[],                        # Will be filled by LLM

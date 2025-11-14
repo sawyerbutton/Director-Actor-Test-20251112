@@ -102,18 +102,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Upload and parse TXT file
+                console.log('Uploading TXT file to:', `${endpoint}?${params}`);
                 const response = await fetch(`${endpoint}?${params}`, {
                     method: 'POST',
                     body: formData
                 });
 
+                console.log('Upload response status:', response.status);
                 const data = await response.json();
+                console.log('Upload response data:', data);
 
                 if (!response.ok) {
+                    console.error('Upload failed with error:', data.detail);
                     throw new Error(data.detail || '上传失败');
                 }
 
                 // Redirect to parse preview page
+                console.log('Redirecting to:', `/parse-preview/${data.job_id}`);
                 window.location.href = `/parse-preview/${data.job_id}`;
 
             } else {
@@ -145,7 +150,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
         } catch (error) {
-            console.error('Upload error:', error);
+            console.error('Upload error (caught in catch block):', error);
+            console.error('Error stack:', error.stack);
             showError(error.message || '上传失败，请重试');
 
             // Re-enable submit button
