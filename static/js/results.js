@@ -251,15 +251,28 @@ function displayRankings(result) {
 
 function formatRankingCard(line) {
     let html = `<div class="mb-2">`;
-    html += `<h6>${line.tcc_id}</h6>`;
+    html += `<h6>${line.tcc_id} - ${line.super_objective || 'Unknown'}</h6>`;
     html += `<div class="row">`;
-    html += `<div class="col-md-4"><small class="text-muted">Spine Score:</small> <strong>${line.spine_score.toFixed(1)}</strong></div>`;
-    html += `<div class="col-md-4"><small class="text-muted">Density:</small> <strong>${line.density_score.toFixed(1)}</strong></div>`;
-    html += `<div class="col-md-4"><small class="text-muted">Coherence:</small> <strong>${line.coherence_score.toFixed(1)}</strong></div>`;
+    html += `<div class="col-md-4"><small class="text-muted">Spine Score:</small> <strong>${line.spine_score ? line.spine_score.toFixed(1) : 'N/A'}</strong></div>`;
+
+    // Get density from reasoning.setup_payoff_density if available
+    const density = line.reasoning?.setup_payoff_density;
+    html += `<div class="col-md-4"><small class="text-muted">Setup-Payoff Density:</small> <strong>${density !== undefined ? density.toFixed(2) : 'N/A'}</strong></div>`;
+
+    // Get scene count from reasoning
+    const sceneCount = line.reasoning?.scene_count;
+    html += `<div class="col-md-4"><small class="text-muted">Scene Count:</small> <strong>${sceneCount || 'N/A'}</strong></div>`;
     html += `</div>`;
-    if (line.rationale) {
-        html += `<p class="small text-muted mt-2 mb-0">${line.rationale}</p>`;
+
+    // Display forces if available
+    if (line.forces) {
+        html += `<div class="mt-2 small">`;
+        html += `<strong>Forces:</strong><br>`;
+        if (line.forces.protagonist) html += `<span class="text-muted">Protagonist:</span> ${line.forces.protagonist}<br>`;
+        if (line.forces.primary_antagonist) html += `<span class="text-muted">Antagonist:</span> ${line.forces.primary_antagonist}`;
+        html += `</div>`;
     }
+
     html += `</div>`;
     return html;
 }

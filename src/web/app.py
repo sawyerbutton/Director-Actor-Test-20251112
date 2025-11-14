@@ -376,7 +376,33 @@ async def get_job_status(job_id: str):
     if job_id not in active_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    return JSONResponse(active_jobs[job_id])
+    job = active_jobs[job_id]
+
+    # Create a serializable version of job data (exclude Script object)
+    serializable_job = {
+        "job_id": job["job_id"],
+        "filename": job["filename"],
+        "status": job["status"],
+        "progress": job.get("progress", 0),
+        "stage": job.get("stage", ""),
+        "created_at": job.get("created_at", ""),
+        "provider": job.get("provider", ""),
+        "model": job.get("model")
+    }
+
+    # Add completion timestamp if available
+    if "completed_at" in job:
+        serializable_job["completed_at"] = job["completed_at"]
+
+    # Add error if failed
+    if job["status"] == "failed" and "error" in job:
+        serializable_job["error"] = job["error"]
+
+    # Add result if completed (convert Pydantic models to dicts)
+    if job["status"] == "completed" and "result" in job:
+        serializable_job["result"] = job["result"]
+
+    return JSONResponse(serializable_job)
 
 
 @app.get("/api/download/report/{job_id}")
@@ -414,17 +440,8 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
         # Send initial status
         if job_id in active_jobs:
             job = active_jobs[job_id]
-            # Create a serializable version of job data without Script object
-            job_data = {
-                "job_id": job["job_id"],
-                "filename": job["filename"],
-                "status": job["status"],
-                "progress": job.get("progress", 0),
-                "stage": job.get("stage", ""),
-                "created_at": job.get("created_at", "")
-            }
 
-            # If parsing is complete, indicate success
+            # If parsing is complete, send completion summary
             if job["status"] == "parsed":
                 await manager.send_progress(job_id, {
                     "type": "complete",
@@ -435,6 +452,15 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
                     "character_count": len(set(char for scene in job["script"].scenes for char in scene.characters)) if "script" in job else 0
                 })
             else:
+                # Create a serializable version of job data without Script object
+                job_data = {
+                    "job_id": job["job_id"],
+                    "filename": job["filename"],
+                    "status": job["status"],
+                    "progress": job.get("progress", 0),
+                    "stage": job.get("stage", ""),
+                    "created_at": job.get("created_at", "")
+                }
                 await manager.send_progress(job_id, {
                     "type": "status",
                     "data": job_data
