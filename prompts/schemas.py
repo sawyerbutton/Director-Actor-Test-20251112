@@ -95,8 +95,8 @@ class TCC(BaseModel):
     @field_validator("evidence_scenes")
     @classmethod
     def validate_scene_ids(cls, scene_ids: List[str]) -> List[str]:
-        """Ensure all scene IDs follow the pattern."""
-        pattern = re.compile(r"^S\d{2,3}$")
+        """Ensure all scene IDs follow the pattern (supports optional lowercase suffix like S05b)."""
+        pattern = re.compile(r"^S\d{2,3}[a-z]?$")
         for sid in scene_ids:
             if not pattern.match(sid):
                 raise ValueError(f"Invalid scene ID format: {sid}")

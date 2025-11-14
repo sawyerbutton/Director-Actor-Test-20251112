@@ -113,20 +113,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 console.log('Upload response status:', response.status);
+                console.log('Response OK?:', response.ok);
+
                 const data = await response.json();
                 console.log('Upload response data:', data);
+                console.log('Job ID from response:', data.job_id);
 
                 if (!response.ok) {
                     console.error('Upload failed with error:', data.detail);
                     throw new Error(data.detail || '上传失败');
                 }
 
+                // Check if job_id exists
+                if (!data.job_id) {
+                    console.error('ERROR: No job_id in response!', data);
+                    throw new Error('服务器响应缺少 job_id');
+                }
+
                 // Update button to show redirecting
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>跳转中...';
+                console.log('Button updated to 跳转中...');
 
                 // Redirect to parse preview page immediately
-                console.log('Redirecting to:', `/parse-preview/${data.job_id}`);
-                window.location.href = `/parse-preview/${data.job_id}`;
+                const redirectUrl = `/parse-preview/${data.job_id}`;
+                console.log('About to redirect to:', redirectUrl);
+
+                // Add a small delay to ensure button update is visible
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                console.log('Executing redirect NOW...');
+                window.location.href = redirectUrl;
 
             } else {
                 // JSON upload - goes to analysis endpoint
