@@ -289,17 +289,18 @@ function displayModifications(result) {
     let html = '';
 
     modifier.modification_log.forEach((mod, index) => {
-        const badgeClass = mod.status === 'fixed' ? 'bg-success' : 'bg-secondary';
-        const icon = mod.status === 'fixed' ? 'check-circle' : 'x-circle';
+        const badgeClass = mod.applied ? 'bg-success' : 'bg-secondary';
+        const icon = mod.applied ? 'check-circle' : 'x-circle';
+        const statusText = mod.applied ? '已应用' : '已跳过';
 
         html += `<div class="card mb-3">`;
         html += `<div class="card-body">`;
         html += `<div class="d-flex justify-content-between align-items-start mb-2">`;
-        html += `<h6 class="mb-0">#${index + 1} ${mod.tcc_id} - ${mod.scene_id || 'N/A'}</h6>`;
-        html += `<span class="badge ${badgeClass}"><i class="bi bi-${icon}"></i> ${mod.status}</span>`;
+        html += `<h6 class="mb-0">#${index + 1} ${mod.issue_id} - ${mod.scene_id || 'N/A'}</h6>`;
+        html += `<span class="badge ${badgeClass}"><i class="bi bi-${icon}"></i> ${statusText}</span>`;
         html += `</div>`;
-        html += `<p class="mb-2"><strong>类型:</strong> ${mod.change_type}</p>`;
-        html += `<p class="mb-0"><strong>理由:</strong> ${mod.rationale}</p>`;
+        html += `<p class="mb-2"><strong>类型:</strong> ${mod.change_type || 'N/A'}</p>`;
+        html += `<p class="mb-0"><strong>理由:</strong> ${mod.reason || 'N/A'}</p>`;
         html += `</div></div>`;
     });
 

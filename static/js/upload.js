@@ -134,15 +134,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>跳转中...';
                 console.log('Button updated to 跳转中...');
 
-                // Redirect to parse preview page immediately
+                // Redirect to parse preview page
                 const redirectUrl = `/parse-preview/${data.job_id}`;
-                console.log('About to redirect to:', redirectUrl);
+                console.log('Redirecting to:', redirectUrl);
 
-                // Add a small delay to ensure button update is visible
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // Small delay to ensure button update is visible, then redirect
+                setTimeout(() => {
+                    window.location.href = redirectUrl;
+                }, 100);
 
-                console.log('Executing redirect NOW...');
-                window.location.href = redirectUrl;
+                // Stop execution here - redirect will happen
+                return;
 
             } else {
                 // JSON upload - goes to analysis endpoint
