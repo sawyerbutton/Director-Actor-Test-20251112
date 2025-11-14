@@ -79,9 +79,9 @@ class LLMEnhancedParser(TXTScriptParser):
 
         return prompts
 
-    def parse(self, file_path: str) -> Script:
+    async def parse(self, file_path: str) -> Script:
         """
-        Parse TXT script with LLM enhancement.
+        Parse TXT script with LLM enhancement (async version).
 
         Args:
             file_path: Path to TXT file
@@ -89,7 +89,7 @@ class LLMEnhancedParser(TXTScriptParser):
         Returns:
             Script object with full semantic information
         """
-        # Step 1: Get basic structure using parent parser
+        # Step 1: Get basic structure using parent parser (synchronous)
         logger.info("Step 1: Extracting basic structure...")
         script = super().parse(file_path)
 
@@ -110,15 +110,12 @@ class LLMEnhancedParser(TXTScriptParser):
             enhanced_scene = self._enhance_scene(scene, scene_text, script.scenes)
             enhanced_scenes.append(enhanced_scene)
 
-            # Report progress if callback provided
+            # Report progress if callback provided (await instead of create_task)
             if self.progress_callback:
-                import asyncio
-                asyncio.create_task(
-                    self.progress_callback(
-                        current=idx + 1,
-                        total=total_scenes,
-                        message=f"Enhanced scene {scene.scene_id} ({idx + 1}/{total_scenes})"
-                    )
+                await self.progress_callback(
+                    current=idx + 1,
+                    total=total_scenes,
+                    message=f"Enhanced scene {scene.scene_id} ({idx + 1}/{total_scenes})"
                 )
 
         # Create enhanced script

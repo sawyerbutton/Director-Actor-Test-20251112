@@ -257,6 +257,21 @@ class ModificationLogEntry(BaseModel):
     new_value: Optional[Any] = None
     reason: Optional[str] = None
 
+    @field_validator('issue_id', mode='before')
+    @classmethod
+    def normalize_issue_id(cls, v):
+        """Normalize issue_id values (LLM sometimes returns ISS_001_corrected, ISS_001_fixed, etc.)."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            # Extract ISS_XXX pattern from strings like "ISS_001_corrected", "ISS_002_fixed"
+            import re
+            match = re.match(r'^(ISS_\d{3})', v)
+            if match:
+                return match.group(1)
+            # If no match, return as-is and let pattern validation catch it
+        return v
+
     @field_validator('change_type', mode='before')
     @classmethod
     def normalize_change_type(cls, v):

@@ -557,9 +557,14 @@ async def run_parsing_job(
         else:
             parser = TXTScriptParser()
 
-        # Parse the script
+        # Parse the script (await if async parser)
         logger.info(f"Parsing TXT script for job {job_id}")
-        script = parser.parse(file_path)
+        if use_llm_enhancement:
+            # LLMEnhancedParser.parse() is async
+            script = await parser.parse(file_path)
+        else:
+            # TXTScriptParser.parse() is sync
+            script = parser.parse(file_path)
 
         # Save parsed JSON
         json_path = Path(file_path).with_suffix('.json')
@@ -621,7 +626,7 @@ async def run_analysis_job(
             "message": "Starting Stage 1: Discovering TCCs..."
         })
 
-        # Run pipeline (this is synchronous, runs in background task)
+        # Run pipeline (synchronous, but in background task so won't block main loop)
         logger.info(f"Running pipeline for job {job_id}")
         final_state = run_pipeline(script, provider=provider, model=model)
 

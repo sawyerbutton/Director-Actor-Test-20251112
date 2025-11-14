@@ -6,7 +6,12 @@
 <!-- Mermaid for flowchart visualization -->
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
-    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    // Initialize Mermaid but don't auto-render (we'll render dynamically)
+    mermaid.initialize({
+        startOnLoad: false,  // Don't auto-render, we'll call manually
+        theme: 'default',
+        securityLevel: 'loose'  // Allow more flexible rendering
+    });
 </script>
 {% endblock %}
 

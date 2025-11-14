@@ -343,11 +343,42 @@ function displayMermaidDiagram(result) {
     diagram += '    classDef bline fill:#17a2b8,stroke:#138496,stroke-width:2px\n';
     diagram += '    classDef cline fill:#6c757d,stroke:#495057,stroke-width:1px\n';
 
-    document.getElementById('mermaidDiagram').textContent = diagram;
+    const diagramElement = document.getElementById('mermaidDiagram');
 
-    // Re-initialize Mermaid
+    // Render Mermaid diagram using mermaid.render() API
     if (window.mermaid) {
-        mermaid.init(undefined, document.getElementById('mermaidDiagram'));
+        try {
+            // Generate unique ID for this diagram
+            const diagramId = 'mermaid-' + Date.now();
+
+            // Use mermaid.render() to get SVG
+            mermaid.render(diagramId, diagram).then(result => {
+                // result.svg contains the rendered SVG
+                diagramElement.innerHTML = result.svg;
+            }).catch(err => {
+                console.error('Mermaid rendering error:', err);
+                diagramElement.innerHTML = `<div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    图表渲染失败: ${err.message || err}
+                    <br><br>
+                    <details>
+                        <summary>Mermaid 代码</summary>
+                        <pre>${diagram}</pre>
+                    </details>
+                </div>`;
+            });
+        } catch (err) {
+            console.error('Mermaid error:', err);
+            diagramElement.innerHTML = `<div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Mermaid 初始化失败: ${err.message || err}
+            </div>`;
+        }
+    } else {
+        console.error('Mermaid library not loaded');
+        diagramElement.innerHTML = `<div class="alert alert-danger">
+            Mermaid 库未加载，无法渲染图表
+        </div>`;
     }
 }
 

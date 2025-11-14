@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI
 
-**Current Version**: 2.4.0 (2025-11-14)
+**Current Version**: 2.4.1 (2025-11-14)
 **Last Updated**: 2025-11-14
-**Completion**: 100% (All three stages + TXT Parser + Web UI + LangSmith observability + A/B testing + Markdown export)
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export)
 
 ---
 
@@ -32,53 +32,68 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 ---
 
-## Current Status (2025-11-13)
+## Current Status (2025-11-14)
 
 ### ✅ What's Working (100% Complete)
 - **Unit Tests**: 44/44 passing (100% pass rate)
 - **Stage 1 (Discoverer)**: ✅ Successfully identifies TCCs with 85-95% confidence
 - **Stage 2 (Auditor)**: ✅ Ranks TCCs as A/B/C-lines with proper scoring
-- **Stage 3 (Modifier)**: ✅ Fixes structural issues (4/4 issues fixed in latest test)
+- **Stage 3 (Modifier)**: ✅ Fixes structural issues with normalized issue_id validation
 - **Dependencies**: All packages installed (LangChain 1.0.5, LangGraph 1.0.3, LangSmith 0.1+)
 - **DeepSeek Integration**: Configured and operational
 - **Documentation**: Complete reference docs (120KB+ across 15+ files)
 - **Error Handling**: Intelligent JSON parsing and schema validation with 0 retries
 - **🆕 TXT Script Parser** (v2.4.0): ✅ Convert TXT scripts to JSON (Phase 1-3 complete)
-- **🆕 LLM Enhancement**: ✅ Semantic extraction with scene missions, key events, setup-payoff
+- **🆕 LLM Enhancement**: ✅ Semantic extraction with async progress callbacks
 - **🆕 Web UI Integration**: ✅ TXT upload, preview, continue-to-analysis workflow
+- **🆕 Mermaid Visualization** (v2.4.1): ✅ Interactive TCC relationship diagrams with A/B/C color coding
 - **LangSmith Observability**: ✅ Auto-tracing, performance metrics, cost estimation
 - **A/B Testing Framework**: ✅ Compare providers, prompts, and parameters
 - **Markdown Export** (v2.3.0): ✅ Professional reports + Mermaid visualization
 
 ### 🎉 Recent Fixes (2025-11-14)
-1. **Stage 2 JSON Parsing** (✅ FIXED)
+
+#### Session 8: UX Optimization & Bug Fixes
+1. **Stage 3 issue_id Validation** (✅ FIXED - Session 8)
+   - **Problem**: LLM returns `ISS_001_corrected`, `ISS_002_fixed` not matching `^ISS_\d{3}$` pattern
+   - **Solution**: Added `normalize_issue_id()` validator to extract ISS_XXX pattern
+   - **Location**: `prompts/schemas.py:260-273`
+   - **Result**: First attempt success, no retries needed, accurate modification counts
+
+2. **Mermaid Visualization Not Rendering** (✅ FIXED - Session 8)
+   - **Problem**: Visualization tab shows only code text, not rendered diagram
+   - **Solution**:
+     - Upgraded to Mermaid 10+ API: `mermaid.render()` instead of deprecated `mermaid.init()`
+     - Changed initialization: `startOnLoad: false` to allow dynamic rendering
+   - **Location**: `static/js/results.js:348-382`, `templates/results.html:5-16`
+   - **Result**: Correct display of colored TCC relationship diagrams (A-line yellow, B-line blue, C-line gray)
+
+3. **TXT Parser Event Loop Error** (✅ FIXED - Session 8)
+   - **Problem**: `RuntimeError: no running event loop` during TXT upload
+   - **Solution**:
+     - Converted `LLMEnhancedParser.parse()` to async method
+     - Properly await async parser in `run_parsing_job()`
+   - **Location**: `src/parser/llm_enhancer.py:82-125`, `src/web/app.py:560-567`
+   - **Result**: TXT parsing works correctly, progress callbacks trigger properly
+
+#### Session 7: Web UI Foundation
+4. **Stage 2 JSON Parsing** (✅ FIXED - Session 7)
    - **Solution**: Enhanced `clean_json_response()` with bracket-stack matching algorithm
    - **Location**: `src/pipeline.py:155-215`
    - **Result**: Extracts first complete JSON object, ignoring trailing text
 
-2. **Stage 2 Schema Validation** (✅ FIXED)
-   - **Solution**: Added field_validator for automatic type coercion (string → list)
-   - **Location**: `prompts/schemas.py:140-149`
-   - **Result**: Handles LLM output format variations gracefully
-
-3. **Stage 3 change_type Validation** (✅ FIXED)
+5. **Stage 3 change_type Validation** (✅ FIXED - Session 7)
    - **Solution**: Extended allowed values and added normalization validator
-   - **Location**: `prompts/schemas.py:260-274`
+   - **Location**: `prompts/schemas.py:275-289`
    - **Result**: Supports "remove" and "delete" operations with smart normalization
 
-4. **Web UI WebSocket Serialization** (✅ FIXED - Session 7)
+6. **Web UI WebSocket Serialization** (✅ FIXED - Session 7)
    - **Problem**: WebSocket couldn't send Script objects in progress updates
    - **Solution**: Restructured to send only serializable summary data
    - **Location**: `src/web/app.py:408-441`
    - **Result**: Real-time progress updates working correctly
 
-5. **Web UI Job Status API** (✅ FIXED - Session 7)
-   - **Problem**: `/api/job/{job_id}` returned 500 error with Script objects
-   - **Solution**: Created filtered serializable job data copy
-   - **Location**: `src/web/app.py:373-405`
-   - **Result**: API returns clean job status without errors
-
-6. **Frontend Data Structure Mismatch** (✅ FIXED - Session 7)
+7. **Frontend Data Structure Mismatch** (✅ FIXED - Session 7)
    - **Problem**: JavaScript expected flat fields, backend returns nested `reasoning` object
    - **Solution**: Modified frontend to use optional chaining for nested fields
    - **Location**: `static/js/results.js:252-278`
@@ -872,12 +887,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.4.0 (TXT Parser + Web Integration + Session 7 Fixes)
+**Project Version**: 2.4.1 (Session 8: UX Optimization + Mermaid Visualization + Async Parser)
 **Prompt Version**: 2.1-Refactored + Auto-Merge + TXT Parser Prompts
-**Documentation Version**: 1.6 (Added Session 7 Web UI fixes and testing report)
+**Documentation Version**: 1.7 (Added Session 8 UX optimization and bug fixes)
 **Last Updated**: 2025-11-14
-**Latest Commit**: TBD (fix: resolve WebSocket serialization and frontend data structure issues)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI (tested & fixed) + observability + A/B testing + export - Production Ready)
+**Latest Commit**: TBD (feat: Session 8 - fix Mermaid visualization, async parser, and issue_id validation)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid Visualization + observability + A/B testing + export - Production Ready)
 
 ---
 
