@@ -35,8 +35,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="剧本叙事结构分析系统",
     description="Script Narrative Structure Analysis System - Web Interface",
-    version="2.3.0"
+    version="2.4.0"
 )
+
+# Static file version for cache busting (update this when JS/CSS changes)
+STATIC_VERSION = "2.4.0"
 
 # Get project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -107,7 +110,10 @@ class AnalysisResponse(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render home page with upload form."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "version": STATIC_VERSION
+    })
 
 
 @app.post("/api/upload", response_model=AnalysisResponse)
@@ -286,7 +292,8 @@ async def parse_preview_page(request: Request, job_id: str):
     return templates.TemplateResponse("parse_preview.html", {
         "request": request,
         "job_id": job_id,
-        "filename": job["filename"]
+        "filename": job["filename"],
+        "version": STATIC_VERSION
     })
 
 
@@ -348,7 +355,8 @@ async def analysis_page(request: Request, job_id: str):
     return templates.TemplateResponse("analysis.html", {
         "request": request,
         "job_id": job_id,
-        "filename": job["filename"]
+        "filename": job["filename"],
+        "version": STATIC_VERSION
     })
 
 
@@ -366,7 +374,8 @@ async def results_page(request: Request, job_id: str):
     return templates.TemplateResponse("results.html", {
         "request": request,
         "job_id": job_id,
-        "result": job.get("result")
+        "result": job.get("result"),
+        "version": STATIC_VERSION
     })
 
 
