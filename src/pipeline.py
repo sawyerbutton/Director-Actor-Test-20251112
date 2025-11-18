@@ -17,6 +17,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tracers.context import tracing_v2_enabled
 from langgraph.graph import StateGraph, END, START
+from langchain_google_genai import ChatGoogleGenerativeAI
 from prompts.schemas import (
     Script, DiscovererOutput, AuditorOutput, ModifierOutput,
     calculate_setup_payoff_density, validate_tcc_independence
@@ -208,13 +209,13 @@ def create_llm(
     provider: str = "deepseek",
     model: Optional[str] = None,
     temperature: float = 0.0,
-    max_tokens: int = 4096
+    max_tokens: int = 16384
 ) -> BaseChatModel:
     """
     Create LLM instance based on provider.
 
     Args:
-        provider: LLM provider ("deepseek", "anthropic", "openai")
+        provider: LLM provider ("deepseek", "anthropic", "openai", "gemini")
         model: Model name (optional, uses default if not provided)
         temperature: Temperature for generation
         max_tokens: Maximum tokens to generate
@@ -227,6 +228,7 @@ def create_llm(
         - DEEPSEEK_BASE_URL: DeepSeek API base URL (optional, default: https://api.deepseek.com/v1)
         - ANTHROPIC_API_KEY: Anthropic API key (if using Claude)
         - OPENAI_API_KEY: OpenAI API key (if using OpenAI)
+        - GOOGLE_API_KEY: Google API key (if using Gemini 3)
     """
     provider = provider.lower()
 
@@ -283,8 +285,25 @@ def create_llm(
             max_tokens=max_tokens
         )
 
+    elif provider == "gemini":
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable not set")
+
+        # Use Gemini 2.5 Flash as default (1M tokens context + 65K output)
+        model = model or "gemini-2.5-flash"
+
+        logger.info(f"Creating Gemini LLM: {model} (max_tokens: {max_tokens})")
+
+        return ChatGoogleGenerativeAI(
+            model=model,
+            google_api_key=api_key,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
+
     else:
-        raise ValueError(f"Unknown provider: {provider}. Choose from: deepseek, anthropic, openai")
+        raise ValueError(f"Unknown provider: {provider}. Choose from: deepseek, anthropic, openai, gemini")
 
 
 # ============================================================================

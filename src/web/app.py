@@ -121,9 +121,13 @@ async def health_check():
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render home page with upload form."""
+    # Get configured LLM provider from environment
+    default_provider = os.getenv("LLM_PROVIDER", "deepseek")
+
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "version": STATIC_VERSION
+        "version": STATIC_VERSION,
+        "default_provider": default_provider
     })
 
 

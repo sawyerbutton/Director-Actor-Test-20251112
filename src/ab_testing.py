@@ -51,7 +51,7 @@ class PromptVariant:
     provider: str = "deepseek"
     model: Optional[str] = None
     temperature: float = 0.0
-    max_tokens: int = 4096
+    max_tokens: int = 16384
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:

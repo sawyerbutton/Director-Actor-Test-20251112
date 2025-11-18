@@ -14,7 +14,7 @@ nano .env  # 添加您的 DEEPSEEK_API_KEY
 ```
 
 ### 步骤 3: 访问应用
-打开浏览器访问: http://localhost:8000
+打开浏览器访问: http://localhost:8014
 
 ---
 
@@ -86,10 +86,10 @@ docker rm -f screenplay-web       # 删除
 docker ps | grep screenplay-web
 
 # 2. 测试健康端点
-curl http://localhost:8000/health
+curl http://localhost:8014/health
 
 # 3. 访问 Web UI
-open http://localhost:8000
+open http://localhost:8014
 ```
 
 预期输出：
@@ -116,10 +116,10 @@ open http://localhost:8000
 
 ### 常见问题快速修复
 
-**问题 1: 端口 8000 已被占用**
+**问题 1: 端口 8014 已被占用**
 ```bash
-# 使用不同端口
-docker run -p 8001:8000 ...
+# 修改 docker-compose.yml 中的端口映射
+# ports: "8015:8000"
 ```
 
 **问题 2: .env 文件未找到**
@@ -141,7 +141,7 @@ docker inspect screenplay-web
 ```bash
 # 等待容器完全启动
 sleep 10
-curl http://localhost:8000/health
+curl http://localhost:8014/health
 
 # 检查应用日志
 docker logs screenplay-web | tail -50

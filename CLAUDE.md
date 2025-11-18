@@ -8,10 +8,10 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Purpose**: Multi-agent LLM system for analyzing and correcting narrative structure in screenplays using a three-stage pipeline (Discover → Audit → Modify).
 
-**Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI
+**Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.4.1 (2025-11-14)
-**Last Updated**: 2025-11-14
+**Current Version**: 2.5.0 (2025-11-19)
+**Last Updated**: 2025-11-19
 **Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export)
 
 ---
@@ -41,6 +41,7 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **Stage 3 (Modifier)**: ✅ Fixes structural issues with normalized issue_id validation
 - **Dependencies**: All packages installed (LangChain 1.0.5, LangGraph 1.0.3, LangSmith 0.1+)
 - **DeepSeek Integration**: Configured and operational
+- **🆕 Gemini 2.5 Flash Integration**: ✅ 1M context, 65K output (solves Stage 3 token limits)
 - **Documentation**: Complete reference docs (120KB+ across 15+ files)
 - **Error Handling**: Intelligent JSON parsing and schema validation with 0 retries
 - **🆕 TXT Script Parser** (v2.4.0): ✅ Convert TXT scripts to JSON (Phase 1-3 complete)
@@ -98,6 +99,25 @@ This file provides quick navigation to all project documentation for AI-assisted
    - **Solution**: Modified frontend to use optional chaining for nested fields
    - **Location**: `static/js/results.js:252-278`
    - **Result**: Results page displays correctly without JavaScript errors
+
+#### Session 9: Gemini 2.5 Flash Integration
+8. **DeepSeek Token Limit Issues** (✅ SOLVED - Session 9)
+   - **Problem**: DeepSeek's 16K max_tokens insufficient for Stage 3 large script analysis, causing JSON truncation
+   - **Solution**: Integrated Google Gemini 2.5 Flash with 1M context + 65K output
+   - **Implementation**:
+     - Added `langchain-google-genai>=2.0.0` dependency
+     - Extended `create_llm()` in `src/pipeline.py:288-303` to support Gemini
+     - Updated `.env.example` and `docker-compose.yml` with GOOGLE_API_KEY
+     - Modified Web UI to pass `default_provider` from environment to template
+   - **Location**: `src/pipeline.py:288-303`, `templates/index.html:94-110`, `.env`, `requirements.txt`
+   - **Result**: Successful analysis of large scripts (12+ scenes) with 0 errors, 0 retries
+   - **Test File**: `test_gemini_api.py` - Pre-business API connectivity testing
+
+9. **Gemini Model Selection** (✅ RESOLVED - Session 9)
+   - **Problem**: Initial attempts used wrong model names (gemini-3-pro, gemini-2.0-flash-thinking-exp)
+   - **Solution**: Corrected to official model name `gemini-2.5-flash`
+   - **Reference**: https://ai.google.dev/gemini-api/docs/models#gemini-2.5-flash
+   - **Result**: API test passed, full pipeline working
 
 ### 📊 Test Results Summary
 ```bash
@@ -247,7 +267,28 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 
 ---
 
-### 7. TXT Script Parser Guide
+### 7. Gemini Integration Guide
+**File**: [`ref/gemini-integration.md`](ref/gemini-integration.md)
+
+**Contents**:
+- Why Gemini (token limit comparison)
+- Quick start and API key setup
+- Implementation details and code changes
+- Model selection guide
+- API key management and security
+- Testing and troubleshooting
+- Performance characteristics and best practices
+- Migration guide (DeepSeek ↔ Gemini)
+
+**When to read**: Setting up Gemini, debugging API issues, choosing LLM provider for large scripts
+
+**Key sections**:
+- Token Limit Comparison - Why Gemini solves Stage 3 issues
+- Quick Start - 5 steps to get Gemini working
+- Troubleshooting - Common errors and solutions
+- Best Practices - When to use Gemini vs DeepSeek
+
+### 8. TXT Script Parser Guide
 **File**: [`ref/txt-parser-guide.md`](ref/txt-parser-guide.md)
 
 **Contents**:
@@ -278,12 +319,13 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 ### Source Code
 
 #### Core Implementation
-- **[`src/pipeline.py`](src/pipeline.py)** (18,954 bytes)
+- **[`src/pipeline.py`](src/pipeline.py)** (20,000+ bytes)
   - LangGraph pipeline
   - Actor implementations (DiscovererActor, AuditorActor, ModifierActor)
-  - LLM provider integration
+  - LLM provider integration (DeepSeek, Claude, OpenAI, Gemini)
   - State management
-  - **Start here for**: Pipeline logic, actor behavior
+  - **Key section**: Lines 288-303 - Gemini LLM factory
+  - **Start here for**: Pipeline logic, actor behavior, LLM configuration
 
 - **[`src/cli.py`](src/cli.py)** (11,500+ bytes)
   - Command-line interface
@@ -412,13 +454,15 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - **Start here for**: Performance testing
 
 ### Configuration
-- **[`.env.example`](.env.example)** (1,374 bytes)
+- **[`.env.example`](.env.example)** (1,500+ bytes)
   - Environment variable template
-  - API key configuration
+  - API key configuration (DeepSeek, Claude, OpenAI, Gemini)
+  - LLM provider selection
   - **Copy to `.env`** and add your keys
 
-- **[`requirements.txt`](requirements.txt)** (426 bytes)
+- **[`requirements.txt`](requirements.txt)** (500+ bytes)
   - Core dependencies
+  - Includes: langchain-google-genai>=2.0.0 for Gemini support
   - **Install with**: `pip install -r requirements.txt`
 
 - **[`requirements-test.txt`](requirements-test.txt)** (392 bytes)
@@ -537,6 +581,14 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - Progress monitoring
   - **Start here for**: Project management view
 
+### Testing & Utilities
+- **[`test_gemini_api.py`](test_gemini_api.py)** (90 lines) 🆕
+  - Gemini API connectivity test script
+  - Pre-business verification before running analysis
+  - Tests model availability, API key, and basic inference
+  - **Use for**: Debugging Gemini setup, validating API keys
+  - **Run**: `python test_gemini_api.py`
+
 ### Examples
 - **[`examples/golden/`](examples/golden/)**
   - Golden dataset scripts for testing
@@ -625,9 +677,19 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 
 ### 🆕 Task: Run A/B Test
 1. Read [`docs/ab-testing-quickstart.md`](docs/ab-testing-quickstart.md) - 3-minute tutorial
-2. Compare providers: `python -m src.cli ab-test script.json --providers deepseek,anthropic`
+2. Compare providers: `python -m src.cli ab-test script.json --providers deepseek,anthropic,gemini`
 3. Compare temperatures: `python -m src.cli ab-test script.json --temperatures 0.0,0.7`
 4. Review results in terminal and `ab_tests/` directory
+
+### 🆕 Task: Use Gemini for Large Scripts (v2.4.1+)
+1. Set environment: `LLM_PROVIDER=gemini` in `.env`
+2. Add API key: `GOOGLE_API_KEY=your_key_here`
+3. Gemini 2.5 Flash offers:
+   - 1M token context window (vs DeepSeek's 64K)
+   - 65K output tokens (vs DeepSeek's 16K)
+   - Solves Stage 3 JSON truncation issues
+4. Test API: `python test_gemini_api.py`
+5. Run analysis: Web UI will automatically use configured provider
 
 ### 🆕 Task: Analyze Performance Metrics
 1. Run analysis with LangSmith enabled
@@ -871,6 +933,7 @@ LangGraph-based orchestration with specialized agents.
 - DeepSeek: https://platform.deepseek.com/
 - Anthropic Claude: https://console.anthropic.com/
 - OpenAI: https://platform.openai.com/
+- Google Gemini: https://ai.google.dev/ (API Key: https://aistudio.google.com/app/apikey)
 
 ### Technical Documentation
 - LangChain: https://python.langchain.com/docs/
@@ -887,12 +950,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.4.1 (Session 8: UX Optimization + Mermaid Visualization + Async Parser)
+**Project Version**: 2.5.0 (Session 9: Gemini 2.5 Flash Integration)
 **Prompt Version**: 2.1-Refactored + Auto-Merge + TXT Parser Prompts
-**Documentation Version**: 1.7 (Added Session 8 UX optimization and bug fixes)
-**Last Updated**: 2025-11-14
-**Latest Commit**: TBD (feat: Session 8 - fix Mermaid visualization, async parser, and issue_id validation)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid Visualization + observability + A/B testing + export - Production Ready)
+**Documentation Version**: 1.8 (Added Session 9 Gemini integration)
+**Last Updated**: 2025-11-19
+**Latest Commit**: TBD (feat: Session 9 - Gemini 2.5 Flash integration for large script support)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid Visualization + observability + A/B testing + export + Gemini support - Production Ready)
 
 ---
 
