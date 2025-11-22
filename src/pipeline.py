@@ -20,7 +20,9 @@ from langgraph.graph import StateGraph, END, START
 from langchain_google_genai import ChatGoogleGenerativeAI
 from prompts.schemas import (
     Script, DiscovererOutput, AuditorOutput, ModifierOutput,
-    calculate_setup_payoff_density, validate_tcc_independence
+    calculate_setup_payoff_density, validate_tcc_independence,
+    filter_low_coverage_tccs, check_antagonist_mutual_exclusion,
+    validate_tcc_scene_evidence
 )
 import json
 import os
@@ -474,6 +476,51 @@ class DiscovererActor:
                 # Only add warnings if we couldn't auto-merge
                 if warnings:
                     state["errors"].extend(warnings)
+
+            # ===== MIDDLEWARE LAYER (v2.6.0) =====
+
+            # Middleware 1: Antagonist Mutual Exclusion Check
+            logger.info("🔍 Running antagonist mutual exclusion check...")
+            antagonist_checked_tccs, antagonist_logs = check_antagonist_mutual_exclusion(
+                discoverer_output.tccs
+            )
+            if antagonist_logs:
+                logger.info("🔀 Antagonist check results:")
+                for log in antagonist_logs:
+                    logger.info(f"  {log}")
+                discoverer_output.tccs = antagonist_checked_tccs
+
+            # Middleware 2: Coverage Threshold Filter
+            total_scenes = len(state["script"].scenes)
+            logger.info(f"🔍 Running TCC coverage filter (threshold: 15%, total scenes: {total_scenes})...")
+            coverage_filtered_tccs, coverage_logs = filter_low_coverage_tccs(
+                discoverer_output.tccs,
+                total_scenes=total_scenes,
+                coverage_threshold=0.15
+            )
+            if coverage_logs:
+                logger.info("📊 Coverage filter results:")
+                for log in coverage_logs:
+                    logger.info(f"  {log}")
+                discoverer_output.tccs = coverage_filtered_tccs
+
+            # ===== END MIDDLEWARE LAYER =====
+
+            # ===== VALIDATION LAYER (v2.6.0) =====
+
+            # Atomic Scene Reverse Verification
+            logger.info("🔬 Running atomic scene reverse verification...")
+            validated_tccs, validation_logs = validate_tcc_scene_evidence(
+                discoverer_output.tccs,
+                state["script"]
+            )
+            if validation_logs:
+                logger.info("📋 Scene evidence validation results:")
+                for log in validation_logs:
+                    logger.info(f"  {log}")
+                discoverer_output.tccs = validated_tccs
+
+            # ===== END VALIDATION LAYER =====
 
             # Update state
             state["discoverer_output"] = discoverer_output

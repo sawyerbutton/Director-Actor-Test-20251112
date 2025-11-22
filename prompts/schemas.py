@@ -41,6 +41,13 @@ class SetupPayoff(BaseModel):
     payoff_from: List[str] = Field(default_factory=list)
 
 
+class PerformanceNote(BaseModel):
+    """表演提示 - 角色名后括号内的表演指示。"""
+    character: str = Field(..., min_length=1, description="角色名")
+    note: str = Field(..., min_length=1, description="表演提示内容，如'呢喃'、'颤抖'")
+    line_context: Optional[str] = Field(None, description="关联的台词片段")
+
+
 class Scene(BaseModel):
     """A single scene in the script."""
     scene_id: str = Field(..., pattern=r"^S\d{2,3}[a-z]?$")  # Allow optional lowercase letter suffix for duplicate IDs
@@ -52,6 +59,15 @@ class Scene(BaseModel):
     relation_change: List[RelationChange] = Field(default_factory=list)
     key_object: List[KeyObject] = Field(default_factory=list)
     setup_payoff: SetupPayoff = Field(default_factory=SetupPayoff)
+    # 新增字段：表演提示和视觉动作 (v2.6.0)
+    performance_notes: List[PerformanceNote] = Field(
+        default_factory=list,
+        description="表演提示列表，如'呢喃'、'颤抖'等情绪指示"
+    )
+    visual_actions: List[str] = Field(
+        default_factory=list,
+        description="视觉动作描述，如'她扶在丈夫肩头的手滑落'"
+    )
 
 
 class Script(BaseModel):
@@ -524,6 +540,316 @@ def merge_mirror_tccs(tccs: List[TCC], threshold: float = 0.9) -> tuple[List[TCC
             merged.append(tcc1)
 
     return merged, merge_logs
+
+
+def filter_low_coverage_tccs(
+    tccs: List[TCC],
+    total_scenes: int,
+    coverage_threshold: float = 0.15
+) -> tuple[List[TCC], List[str]]:
+    """
+    Filter out TCCs with coverage below threshold.
+
+    Coverage formula: (Last_Scene - First_Scene + 1) / Total_Scenes
+
+    A TCC appearing only in S01 and S12 in a 50-scene script has coverage
+    of (12-1+1)/50 = 0.24, which is above the 0.15 threshold.
+
+    Args:
+        tccs: List of TCCs to filter
+        total_scenes: Total number of scenes in the script
+        coverage_threshold: Minimum coverage ratio (default: 0.15 = 15%)
+
+    Returns:
+        Tuple of (filtered_tccs, filter_logs)
+    """
+    if total_scenes <= 0:
+        return tccs, ["Warning: total_scenes is 0, skipping coverage filter"]
+
+    filtered = []
+    filter_logs = []
+
+    for tcc in tccs:
+        if not tcc.evidence_scenes:
+            filter_logs.append(f"⚠️ {tcc.tcc_id} has no evidence_scenes, filtered out")
+            continue
+
+        # Extract scene numbers from scene IDs (e.g., "S01" -> 1, "S12" -> 12)
+        scene_numbers = []
+        for scene_id in tcc.evidence_scenes:
+            try:
+                # Handle formats like "S01", "S1", "Scene1"
+                import re
+                match = re.search(r'\d+', scene_id)
+                if match:
+                    scene_numbers.append(int(match.group()))
+            except (ValueError, AttributeError):
+                continue
+
+        if len(scene_numbers) < 2:
+            filter_logs.append(f"⚠️ {tcc.tcc_id} has <2 parseable scenes, filtered out")
+            continue
+
+        first_scene = min(scene_numbers)
+        last_scene = max(scene_numbers)
+        span = last_scene - first_scene + 1
+        coverage = span / total_scenes
+
+        if coverage >= coverage_threshold:
+            filtered.append(tcc)
+            filter_logs.append(
+                f"✅ {tcc.tcc_id} coverage: {coverage:.1%} (S{first_scene:02d}-S{last_scene:02d})"
+            )
+        else:
+            filter_logs.append(
+                f"❌ {tcc.tcc_id} filtered: coverage {coverage:.1%} < {coverage_threshold:.1%} threshold"
+            )
+
+    return filtered, filter_logs
+
+
+def check_antagonist_mutual_exclusion(tccs: List[TCC]) -> tuple[List[TCC], List[str]]:
+    """
+    Detect and handle antagonist/protagonist mirror TCCs.
+
+    When two TCCs have:
+    1. Opposite super_objectives (one is to achieve X, other is to block X)
+    2. Very high scene overlap (>80%)
+
+    They should be merged into one TCC where one party is the antagonist.
+
+    Args:
+        tccs: List of TCCs to check
+
+    Returns:
+        Tuple of (processed_tccs, check_logs)
+    """
+    if len(tccs) <= 1:
+        return tccs, []
+
+    # Keywords that indicate opposition/blocking
+    OPPOSITION_MARKERS = [
+        ("阻止", "寻求"), ("阻止", "获取"), ("阻止", "想要"),
+        ("block", "get"), ("stop", "achieve"), ("prevent", "want"),
+        ("反对", "支持"), ("破坏", "建立"), ("against", "for"),
+    ]
+
+    processed = []
+    skip_indices = set()
+    check_logs = []
+
+    for i, tcc1 in enumerate(tccs):
+        if i in skip_indices:
+            continue
+
+        antagonist_found = None
+
+        for j, tcc2 in enumerate(tccs[i+1:], start=i+1):
+            if j in skip_indices:
+                continue
+
+            # Check scene overlap
+            overlap = len(set(tcc1.evidence_scenes) & set(tcc2.evidence_scenes))
+            total = max(len(tcc1.evidence_scenes), len(tcc2.evidence_scenes))
+            overlap_ratio = overlap / total if total > 0 else 0
+
+            if overlap_ratio < 0.8:
+                continue  # Not enough overlap to be mirror
+
+            # Check for opposition in super_objectives
+            obj1 = tcc1.super_objective.lower()
+            obj2 = tcc2.super_objective.lower()
+
+            is_opposition = False
+            for block_word, achieve_word in OPPOSITION_MARKERS:
+                if (block_word in obj1 and achieve_word in obj2) or \
+                   (achieve_word in obj1 and block_word in obj2):
+                    is_opposition = True
+                    break
+
+            if is_opposition:
+                antagonist_found = (j, tcc2)
+                skip_indices.add(j)
+                check_logs.append(
+                    f"🔀 {tcc1.tcc_id} & {tcc2.tcc_id} are antagonist mirrors "
+                    f"(overlap: {overlap_ratio:.1%})"
+                )
+                check_logs.append(
+                    f"   Merged: keeping {tcc1.tcc_id} (higher confidence wins)"
+                )
+                break
+
+        # Keep the TCC with higher confidence if antagonist found
+        if antagonist_found:
+            _, tcc2 = antagonist_found
+            winner = tcc1 if tcc1.confidence >= tcc2.confidence else tcc2
+            # Merge evidence scenes
+            merged_scenes = list(set(tcc1.evidence_scenes) | set(tcc2.evidence_scenes))
+            winner.evidence_scenes = sorted(merged_scenes)
+            processed.append(winner)
+        else:
+            processed.append(tcc1)
+
+    return processed, check_logs
+
+
+def validate_tcc_scene_evidence(
+    tccs: List[TCC],
+    script: "Script"
+) -> tuple[List[TCC], List[str]]:
+    """
+    Atomic Scene Reverse Verification for TCCs.
+
+    For each TCC's evidence_scenes, verify whether the scene's key_events
+    can actually support the TCC's super_objective. This prevents
+    "semantic hallucination" where LLM claims a scene supports a TCC
+    without actual evidence.
+
+    Args:
+        tccs: List of TCCs to validate
+        script: The Script object containing scene data
+
+    Returns:
+        Tuple of (validated_tccs, validation_logs)
+    """
+    validated_tccs = []
+    validation_logs = []
+
+    # Build scene lookup dict
+    scene_dict = {scene.scene_id: scene for scene in script.scenes}
+
+    for tcc in tccs:
+        valid_scenes = []
+        invalid_scenes = []
+
+        for scene_id in tcc.evidence_scenes:
+            scene = scene_dict.get(scene_id)
+
+            if not scene:
+                invalid_scenes.append(f"{scene_id} (not found)")
+                continue
+
+            # Check if scene has any key_events that could support the TCC
+            has_relevant_event = False
+
+            # Get keywords from super_objective for matching
+            objective_lower = tcc.super_objective.lower()
+
+            # Check key_events
+            for event in (scene.key_events or []):
+                event_lower = event.lower()
+                # Basic keyword overlap check
+                # In production, this could use embedding similarity
+                if _has_keyword_overlap(objective_lower, event_lower):
+                    has_relevant_event = True
+                    break
+
+            # Also check scene_mission
+            if not has_relevant_event and scene.scene_mission:
+                if _has_keyword_overlap(objective_lower, scene.scene_mission.lower()):
+                    has_relevant_event = True
+
+            # Also check relation_change for interpersonal conflicts
+            if not has_relevant_event and scene.relation_change:
+                for rel in scene.relation_change:
+                    # Note: RelationChange uses from_ (aliased as "from") and to
+                    rel_str = f"{rel.chars} {rel.from_} {rel.to}".lower()
+                    if _has_keyword_overlap(objective_lower, rel_str):
+                        has_relevant_event = True
+                        break
+
+            if has_relevant_event:
+                valid_scenes.append(scene_id)
+            else:
+                invalid_scenes.append(f"{scene_id} (no supporting evidence)")
+
+        # Log validation results
+        if invalid_scenes:
+            validation_logs.append(
+                f"⚠️ {tcc.tcc_id}: {len(invalid_scenes)}/{len(tcc.evidence_scenes)} "
+                f"scenes lack clear evidence: {', '.join(invalid_scenes)}"
+            )
+
+        # Keep TCC if at least 2 valid scenes remain
+        if len(valid_scenes) >= 2:
+            # Update evidence_scenes to only valid ones
+            tcc.evidence_scenes = valid_scenes
+            validated_tccs.append(tcc)
+            validation_logs.append(
+                f"✅ {tcc.tcc_id}: Validated with {len(valid_scenes)} evidence scenes"
+            )
+        elif len(valid_scenes) >= 1:
+            # Keep TCC with reduced confidence if only 1 valid scene
+            tcc.evidence_scenes = valid_scenes
+            tcc.confidence = max(0.5, tcc.confidence - 0.2)  # Reduce confidence
+            validated_tccs.append(tcc)
+            validation_logs.append(
+                f"⚠️ {tcc.tcc_id}: Kept with reduced confidence ({tcc.confidence:.2f}), only {len(valid_scenes)} valid scene"
+            )
+        else:
+            # No valid scenes - keep original but mark as low confidence
+            # Don't filter completely to avoid breaking downstream stages
+            tcc.confidence = max(0.4, tcc.confidence - 0.3)
+            validated_tccs.append(tcc)
+            validation_logs.append(
+                f"⚠️ {tcc.tcc_id}: No keyword evidence found, kept with low confidence ({tcc.confidence:.2f})"
+            )
+
+    return validated_tccs, validation_logs
+
+
+def _has_keyword_overlap(text1: str, text2: str, min_overlap: int = 1) -> bool:
+    """
+    Check if two texts have meaningful keyword overlap.
+
+    This is a simple heuristic. In production, you might use:
+    - Word embeddings for semantic similarity
+    - Named entity recognition
+    - More sophisticated NLP
+
+    Args:
+        text1: First text (typically TCC objective)
+        text2: Second text (typically scene event/mission)
+        min_overlap: Minimum number of overlapping keywords required
+
+    Returns:
+        True if meaningful overlap found
+    """
+    # Common stop words to filter out
+    STOP_WORDS = {
+        '的', '了', '是', '在', '和', '与', '被', '把', '对', '到', '为',
+        '着', '过', '不', '这', '那', '有', '要', '会', '能', '想',
+        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'to', 'of', 'and',
+        'in', 'for', 'on', 'with', 'as', 'at', 'by', 'from'
+    }
+
+    # Extract words (Chinese characters are individual, English are space-separated)
+    import re
+
+    # For Chinese: extract all Chinese character sequences
+    chinese_words1 = set(re.findall(r'[\u4e00-\u9fa5]+', text1))
+    chinese_words2 = set(re.findall(r'[\u4e00-\u9fa5]+', text2))
+
+    # For English: extract word tokens
+    english_words1 = set(w.lower() for w in re.findall(r'[a-zA-Z]+', text1))
+    english_words2 = set(w.lower() for w in re.findall(r'[a-zA-Z]+', text2))
+
+    # Combine and filter stop words
+    words1 = (chinese_words1 | english_words1) - STOP_WORDS
+    words2 = (chinese_words2 | english_words2) - STOP_WORDS
+
+    # Check for overlap
+    overlap = words1 & words2
+
+    # Also check if any word from text1 is a substring of text2 (or vice versa)
+    # This handles cases like "投资" matching "创业投资"
+    for w1 in words1:
+        if len(w1) >= 2:
+            for w2 in words2:
+                if len(w2) >= 2 and (w1 in w2 or w2 in w1):
+                    overlap.add(w1)
+
+    return len(overlap) >= min_overlap
 
 
 # ============================================================================

@@ -293,14 +293,37 @@ function displayModifications(result) {
         const icon = mod.applied ? 'check-circle' : 'x-circle';
         const statusText = mod.applied ? '已应用' : '已跳过';
 
+        // Generate meaningful description for applied modifications
+        let description = '';
+        if (mod.applied) {
+            const changeTypeMap = {
+                'add': '添加',
+                'append': '追加',
+                'update': '更新',
+                'remove': '移除',
+                'delete': '删除'
+            };
+            const actionText = changeTypeMap[mod.change_type] || mod.change_type || '修改';
+            const fieldText = mod.field || '字段';
+            description = `${actionText}了 ${fieldText}`;
+            if (mod.new_value) {
+                const valueStr = typeof mod.new_value === 'object'
+                    ? JSON.stringify(mod.new_value).substring(0, 50)
+                    : String(mod.new_value).substring(0, 50);
+                description += `: ${valueStr}`;
+            }
+        } else {
+            description = mod.reason || '未知原因';
+        }
+
         html += `<div class="card mb-3">`;
         html += `<div class="card-body">`;
         html += `<div class="d-flex justify-content-between align-items-start mb-2">`;
         html += `<h6 class="mb-0">#${index + 1} ${mod.issue_id} - ${mod.scene_id || 'N/A'}</h6>`;
         html += `<span class="badge ${badgeClass}"><i class="bi bi-${icon}"></i> ${statusText}</span>`;
         html += `</div>`;
-        html += `<p class="mb-2"><strong>类型:</strong> ${mod.change_type || 'N/A'}</p>`;
-        html += `<p class="mb-0"><strong>理由:</strong> ${mod.reason || 'N/A'}</p>`;
+        html += `<p class="mb-2"><strong>操作:</strong> ${mod.change_type || 'N/A'}</p>`;
+        html += `<p class="mb-0"><strong>详情:</strong> ${description}</p>`;
         html += `</div></div>`;
     });
 

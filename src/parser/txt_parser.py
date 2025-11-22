@@ -11,7 +11,7 @@ Supported formats:
 
 import re
 from typing import List, Dict, Tuple
-from prompts.schemas import Script, Scene
+from prompts.schemas import Script, Scene, PerformanceNote
 from .base import ScriptParser
 import logging
 
@@ -45,6 +45,22 @@ class TXTScriptParser(ScriptParser):
     DIALOGUE_PATTERNS = [
         r'^([^：:\n]+)[：:]\s*(.+)',              # 角色：台词
         r'^([A-Z\u4e00-\u9fa5]{2,})\n\s+(.+)',   # 角色名(独立行)\n  台词
+    ]
+
+    # 表演提示模式：角色名后的括号内容
+    # 例: 庄见青（呢喃）：, 李明(颤抖地):
+    PERFORMANCE_NOTE_PATTERNS = [
+        r'^([^（(：:]+)[（(]([^）)]+)[）)][：:]?\s*(.*)$',  # 角色名（提示）：台词
+    ]
+
+    # 视觉动作模式：特殊符号开头的行
+    VISUAL_ACTION_PATTERNS = [
+        r'^△\s*(.+)$',           # △ 开头 (三角形)
+        r'^▲\s*(.+)$',           # ▲ 开头 (实心三角)
+        r'^■\s*(.+)$',           # ■ 开头 (黑方块)
+        r'^【(.+)】$',            # 【】 包裹
+        r'^\[(.+)\]$',           # [] 包裹 (英文方括号)
+        r'^〔(.+)〕$',            # 〔〕 包裹
     ]
 
     def __init__(self):
@@ -209,6 +225,12 @@ class TXTScriptParser(ScriptParser):
         # Extract basic description (first non-dialogue, non-heading text)
         description = self._extract_description(lines[1:] if len(lines) > 1 else [])
 
+        # 新增：提取表演提示 (v2.6.0)
+        performance_notes = self._extract_performance_notes(scene_text)
+
+        # 新增：提取视觉动作 (v2.6.0)
+        visual_actions = self._extract_visual_actions(scene_text)
+
         # If no characters found, add placeholder
         if not characters:
             characters = ["待识别"]
@@ -229,7 +251,9 @@ class TXTScriptParser(ScriptParser):
             setup_payoff=SetupPayoff(),                # Empty SetupPayoff object
             relation_change=[],                        # Will be filled by LLM
             info_change=[],                            # Will be filled by LLM
-            key_object=[]                              # Will be filled by LLM
+            key_object=[],                             # Will be filled by LLM
+            performance_notes=performance_notes,       # 新增：表演提示
+            visual_actions=visual_actions              # 新增：视觉动作
         )
 
         return scene
@@ -365,3 +389,77 @@ class TXTScriptParser(ScriptParser):
                 break
 
         return ' '.join(description_lines) if description_lines else ""
+
+    def _extract_performance_notes(self, scene_text: str) -> List[PerformanceNote]:
+        """
+        Extract performance notes from scene text.
+
+        Performance notes are hints in parentheses after character names,
+        e.g., "庄见青（呢喃）：" or "李明(颤抖地):"
+
+        Args:
+            scene_text: Full scene text
+
+        Returns:
+            List of PerformanceNote objects
+        """
+        performance_notes = []
+        lines = scene_text.split('\n')
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Try performance note patterns
+            for pattern in self.PERFORMANCE_NOTE_PATTERNS:
+                match = re.match(pattern, line)
+                if match:
+                    groups = match.groups()
+                    character = groups[0].strip()
+                    note = groups[1].strip()
+                    dialogue = groups[2].strip() if len(groups) > 2 and groups[2] else None
+
+                    # Filter out invalid character names
+                    if len(character) >= 1 and len(character) <= 10:
+                        if not any(sep in character for sep in ['。', '，', '、', '：', ':']):
+                            performance_notes.append(PerformanceNote(
+                                character=character,
+                                note=note,
+                                line_context=dialogue if dialogue else None
+                            ))
+                    break
+
+        return performance_notes
+
+    def _extract_visual_actions(self, scene_text: str) -> List[str]:
+        """
+        Extract visual action descriptions from scene text.
+
+        Visual actions are lines starting with special symbols like △, ■, 【】, etc.
+        These describe physical actions or stage directions.
+
+        Args:
+            scene_text: Full scene text
+
+        Returns:
+            List of visual action strings
+        """
+        visual_actions = []
+        lines = scene_text.split('\n')
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Try visual action patterns
+            for pattern in self.VISUAL_ACTION_PATTERNS:
+                match = re.match(pattern, line)
+                if match:
+                    action = match.group(1).strip()
+                    if action and len(action) >= 2:
+                        visual_actions.append(action)
+                    break
+
+        return visual_actions

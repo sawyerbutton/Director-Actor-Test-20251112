@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.5.0 (2025-11-19)
-**Last Updated**: 2025-11-19
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export)
+**Current Version**: 2.6.0 (2025-11-22)
+**Last Updated**: 2025-11-22
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol)
 
 ---
 
@@ -32,7 +32,7 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 ---
 
-## Current Status (2025-11-14)
+## Current Status (2025-11-22)
 
 ### ✅ What's Working (100% Complete)
 - **Unit Tests**: 44/44 passing (100% pass rate)
@@ -41,18 +41,60 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **Stage 3 (Modifier)**: ✅ Fixes structural issues with normalized issue_id validation
 - **Dependencies**: All packages installed (LangChain 1.0.5, LangGraph 1.0.3, LangSmith 0.1+)
 - **DeepSeek Integration**: Configured and operational
-- **🆕 Gemini 2.5 Flash Integration**: ✅ 1M context, 65K output (solves Stage 3 token limits)
+- **Gemini 2.5 Flash Integration**: ✅ 1M context, 65K output (solves Stage 3 token limits)
 - **Documentation**: Complete reference docs (120KB+ across 15+ files)
 - **Error Handling**: Intelligent JSON parsing and schema validation with 0 retries
-- **🆕 TXT Script Parser** (v2.4.0): ✅ Convert TXT scripts to JSON (Phase 1-3 complete)
-- **🆕 LLM Enhancement**: ✅ Semantic extraction with async progress callbacks
-- **🆕 Web UI Integration**: ✅ TXT upload, preview, continue-to-analysis workflow
-- **🆕 Mermaid Visualization** (v2.4.1): ✅ Interactive TCC relationship diagrams with A/B/C color coding
+- **TXT Script Parser** (v2.4.0): ✅ Convert TXT scripts to JSON (Phase 1-3 complete)
+- **LLM Enhancement**: ✅ Semantic extraction with async progress callbacks
+- **Web UI Integration**: ✅ TXT upload, preview, continue-to-analysis workflow
+- **Mermaid Visualization** (v2.4.1): ✅ Interactive TCC relationship diagrams with A/B/C color coding
 - **LangSmith Observability**: ✅ Auto-tracing, performance metrics, cost estimation
 - **A/B Testing Framework**: ✅ Compare providers, prompts, and parameters
 - **Markdown Export** (v2.3.0): ✅ Professional reports + Mermaid visualization
+- **🆕 Action Analysis Protocol (AAP)** (v2.6.0): ✅ Performance notes & visual actions extraction
+- **🆕 TCC Middleware Layer** (v2.6.0): ✅ Coverage filter + antagonist mutual exclusion
+- **🆕 Scene Validation Layer** (v2.6.0): ✅ Atomic reverse verification
+- **🆕 Chinese Output Enforcement** (v2.6.0): ✅ All prompts enforce Chinese output
 
-### 🎉 Recent Fixes (2025-11-14)
+### 🎉 Recent Fixes (2025-11-22)
+
+#### Session 10: Discoverer Optimization - Action Analysis Protocol
+1. **Action Analysis Protocol (AAP)** (✅ NEW - Session 10)
+   - **Feature**: Extract performance_notes and visual_actions as TCC evidence
+   - **New Models**: `PerformanceNote` in `prompts/schemas.py`
+   - **New Fields**: `Scene.performance_notes`, `Scene.visual_actions`
+   - **TXT Parser**: Regex extraction for `角色名(提示)` and `△/■/【】` patterns
+
+2. **TCC Middleware Layer** (✅ NEW - Session 10)
+   - **Coverage Filter**: `filter_low_coverage_tccs()` - threshold ≥15%
+   - **Antagonist Check**: `check_antagonist_mutual_exclusion()` - prevent mirror TCCs
+   - **Location**: `prompts/schemas.py`, `src/pipeline.py`
+
+3. **Scene Validation Layer** (✅ NEW - Session 10)
+   - **Function**: `validate_tcc_scene_evidence()` - atomic reverse verification
+   - **Helper**: `_has_keyword_overlap()` - keyword matching (min_overlap=1)
+   - **Purpose**: Prevent semantic hallucination in TCC identification
+
+4. **Chinese Output Enforcement** (✅ FIXED - Session 10)
+   - **Problem**: LLM outputs mixed English/Chinese (e.g., "玉鼠精's e-commerce funding")
+   - **Solution**: Added Language Requirement section to all Stage prompts
+   - **Location**: `prompts/stage1_discoverer.md`, `stage2_auditor.md`, `stage3_modifier.md`
+   - **Result**: All TCC content now in pure Chinese
+
+5. **Frontend Display Fix** (✅ FIXED - Session 10)
+   - **Problem**: Stage 3 shows "理由: N/A" for applied modifications
+   - **Solution**: Generate meaningful descriptions from field/new_value
+   - **Location**: `static/js/results.js:296-317`
+   - **Result**: Shows "详情: 添加了 xxx" instead of "N/A"
+
+6. **RelationChange Attribute Fix** (✅ FIXED - Session 10)
+   - **Problem**: `'RelationChange' object has no attribute 'from_state'`
+   - **Solution**: Use correct Pydantic field name `from_` instead of `from_state`
+   - **Location**: `prompts/schemas.py`
+
+#### Session 9: Gemini Integration (2025-11-19)
+
+### 🎉 Previous Fixes (2025-11-14)
 
 #### Session 8: UX Optimization & Bug Fixes
 1. **Stage 3 issue_id Validation** (✅ FIXED - Session 8)
@@ -419,21 +461,35 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 #### Prompt System
 - **[`prompts/schemas.py`](prompts/schemas.py)**
   - Pydantic models for all data structures
-  - Validation functions
-  - Calculation utilities
-  - **Start here for**: Data models, validation logic
+  - Validation functions and middleware (v2.6.0)
+  - `PerformanceNote` model, `filter_low_coverage_tccs()`, `check_antagonist_mutual_exclusion()`, `validate_tcc_scene_evidence()`
+  - **Start here for**: Data models, validation logic, TCC middleware
 
-- **[`prompts/stage1_discoverer.md`](prompts/stage1_discoverer.md)**
+- **[`prompts/stage1_discoverer.md`](prompts/stage1_discoverer.md)** (v2.6.0-AAP)
   - Stage 1 prompt (TCC identification)
+  - Language Requirement for Chinese output
+  - Action Analysis Protocol (AAP) section
   - **Start here for**: Understanding TCC discovery logic
 
 - **[`prompts/stage2_auditor.md`](prompts/stage2_auditor.md)**
   - Stage 2 prompt (A/B/C-line ranking)
+  - Language Requirement for Chinese output
   - **Start here for**: Understanding ranking criteria
 
 - **[`prompts/stage3_modifier.md`](prompts/stage3_modifier.md)**
   - Stage 3 prompt (structural fixes)
+  - Language Requirement for Chinese output
   - **Start here for**: Understanding modification logic
+
+- **🆕 [`prompts/action_classifier.md`](prompts/action_classifier.md)** (v2.6.0)
+  - Prompt A: Action classification (emotional_signal vs noise)
+  - Decision flowchart for action categorization
+  - **Start here for**: Understanding action filtering logic
+
+- **🆕 [`prompts/action_analyzer.md`](prompts/action_analyzer.md)** (v2.6.0)
+  - Prompt B: Action-to-TCC evidence analysis
+  - Confidence boost rules and conflict mapping
+  - **Start here for**: Understanding action-TCC relationship
 
 - **[`prompts/README.md`](prompts/README.md)** (22,739 bytes)
   - Comprehensive prompt documentation
@@ -1008,12 +1064,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.5.0 (Session 9: Gemini 2.5 Flash Integration)
-**Prompt Version**: 2.1-Refactored + Auto-Merge + TXT Parser Prompts
-**Documentation Version**: 1.8 (Added Session 9 Gemini integration)
-**Last Updated**: 2025-11-19
-**Latest Commit**: TBD (feat: Session 9 - Gemini 2.5 Flash integration for large script support)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid Visualization + observability + A/B testing + export + Gemini support - Production Ready)
+**Project Version**: 2.6.0 (Session 10: Discoverer Optimization - Action Analysis Protocol)
+**Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
+**Documentation Version**: 1.9 (Added Session 10 AAP, middleware, validation)
+**Last Updated**: 2025-11-22
+**Latest Commit**: TBD (feat: Session 10 - Action Analysis Protocol + Chinese output enforcement)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini + AAP - Production Ready)
 
 ---
 
