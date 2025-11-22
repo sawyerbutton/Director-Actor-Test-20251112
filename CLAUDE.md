@@ -581,6 +581,23 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - Progress monitoring
   - **Start here for**: Project management view
 
+#### 🆕 Project Status (v2.5.0)
+- **[`PROJECT_STATUS.md`](PROJECT_STATUS.md)** (331 lines) 🆕
+  - 整体进度概览 (100% 完成)
+  - 开发历程 (Session 1-9)
+  - 已完成功能清单
+  - **已知遗留问题**:
+    1. 单场景剧本分析失败 (需最少 2 场景)
+    2. Mermaid 渲染兼容性
+    3. LLM 语义增强成本
+    4. 大文件上传超时
+    5. 错误信息国际化
+  - 未来改进建议 (短期/中期/长期)
+  - 关键文件索引和测试状态
+  - 快速问题排查指南
+  - 完整变更日志 (v2.1.0 - v2.5.0)
+  - **Start here for**: 项目状态概览、遗留问题、未来规划
+
 ### Testing & Utilities
 - **[`test_gemini_api.py`](test_gemini_api.py)** (90 lines) 🆕
   - Gemini API connectivity test script
