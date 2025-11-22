@@ -533,49 +533,49 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - **Start here for**: Generating and customizing reports
 
 #### 🆕 TXT Parser Documentation (v2.4.0)
-- **[`PARSER_PHASE1_COMPLETE.md`](PARSER_PHASE1_COMPLETE.md)** (15 pages)
+- **[`docs/development/PARSER_PHASE1_COMPLETE.md`](docs/development/PARSER_PHASE1_COMPLETE.md)** (15 pages)
   - Phase 1 completion report
   - Basic TXT parser implementation
   - Testing results and validation
   - **Start here for**: Understanding Phase 1 development
 
-- **[`PARSER_PHASE2_COMPLETE.md`](PARSER_PHASE2_COMPLETE.md)** (18 pages)
+- **[`docs/development/PARSER_PHASE2_COMPLETE.md`](docs/development/PARSER_PHASE2_COMPLETE.md)** (18 pages)
   - Phase 2 completion report
   - LLM enhancement implementation
   - Prompt engineering details
   - **Start here for**: Understanding LLM enhancement
 
-- **[`PARSER_PHASE3_COMPLETE.md`](PARSER_PHASE3_COMPLETE.md)** (25 pages)
+- **[`docs/development/PARSER_PHASE3_COMPLETE.md`](docs/development/PARSER_PHASE3_COMPLETE.md)** (25 pages)
   - Phase 3 completion report
   - Web integration implementation
   - User workflow and features
   - **Start here for**: Understanding Web integration
 
-- **[`PHASE3_TEST_RESULTS.md`](PHASE3_TEST_RESULTS.md)** (12 pages)
+- **[`docs/development/PHASE3_TEST_RESULTS.md`](docs/development/PHASE3_TEST_RESULTS.md)** (12 pages)
   - Automated test results
   - 5/5 tests passing (100%)
   - Integration test coverage
   - **Start here for**: Testing methodology and results
 
-- **[`DEVELOPMENT_LOG.md`](DEVELOPMENT_LOG.md)** (Session 1-6)
+- **[`docs/development/DEVELOPMENT_LOG.md`](docs/development/DEVELOPMENT_LOG.md)** (Session 1-9)
   - Complete development history
-  - 6 development sessions documented
+  - 9 development sessions documented
   - All decisions and implementations tracked
   - **Start here for**: Full development timeline
 
-- **[`CRITICAL_GAP_ANALYSIS.md`](CRITICAL_GAP_ANALYSIS.md)** (15 pages)
+- **[`docs/development/CRITICAL_GAP_ANALYSIS.md`](docs/development/CRITICAL_GAP_ANALYSIS.md)** (15 pages)
   - Problem analysis (TXT vs JSON gap)
   - Solution design and alternatives
   - Decision rationale
   - **Start here for**: Understanding why TXT parser was needed
 
-- **[`PARSER_DEVELOPMENT_PLAN.md`](PARSER_DEVELOPMENT_PLAN.md)** (20 pages)
+- **[`docs/development/PARSER_DEVELOPMENT_PLAN.md`](docs/development/PARSER_DEVELOPMENT_PLAN.md)** (20 pages)
   - 4-phase development plan
   - Technical architecture
   - Task breakdown (60+ subtasks)
   - **Start here for**: Development methodology
 
-- **[`TASKS_SUMMARY.md`](TASKS_SUMMARY.md)**
+- **[`docs/development/TASKS_SUMMARY.md`](docs/development/TASKS_SUMMARY.md)**
   - Task tracking and milestones
   - Risk assessment
   - Progress monitoring
@@ -599,12 +599,21 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - **Start here for**: 项目状态概览、遗留问题、未来规划
 
 ### Testing & Utilities
-- **[`test_gemini_api.py`](test_gemini_api.py)** (90 lines) 🆕
+- **[`scripts/test_gemini_api.py`](scripts/test_gemini_api.py)** (90 lines) 🆕
   - Gemini API connectivity test script
   - Pre-business verification before running analysis
   - Tests model availability, API key, and basic inference
   - **Use for**: Debugging Gemini setup, validating API keys
-  - **Run**: `python test_gemini_api.py`
+  - **Run**: `python scripts/test_gemini_api.py`
+
+- **[`scripts/test_web_integration.py`](scripts/test_web_integration.py)** (260 lines)
+  - Automated test suite for Web UI integration
+  - Parser, serialization, API, and UI tests
+  - **Run**: `python scripts/test_web_integration.py`
+
+- **[`scripts/run_tests.sh`](scripts/run_tests.sh)** - Test runner script
+- **[`scripts/run_web_server.sh`](scripts/run_web_server.sh)** - Web server launcher
+- **[`scripts/deploy.sh`](scripts/deploy.sh)** - Deployment script
 
 ### Examples
 - **[`examples/golden/`](examples/golden/)**
@@ -705,7 +714,7 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
    - 1M token context window (vs DeepSeek's 64K)
    - 65K output tokens (vs DeepSeek's 16K)
    - Solves Stage 3 JSON truncation issues
-4. Test API: `python test_gemini_api.py`
+4. Test API: `python scripts/test_gemini_api.py`
 5. Run analysis: Web UI will automatically use configured provider
 
 ### 🆕 Task: Analyze Performance Metrics
@@ -824,23 +833,55 @@ LangGraph-based orchestration with specialized agents.
 │   └── test_scripts/           # 🆕 TXT test scripts
 │       └── simple_script.txt   # Example TXT script
 │
-├── docs/                        # Development docs
+├── docs/                        # Documentation (organized by category)
+│   ├── development/             # 🆕 Development history and plans
+│   │   ├── DEVELOPMENT_LOG.md   # Complete development history (Session 1-9)
+│   │   ├── PARSER_DEVELOPMENT_PLAN.md
+│   │   ├── PARSER_PHASE1_COMPLETE.md
+│   │   ├── PARSER_PHASE2_COMPLETE.md
+│   │   ├── PARSER_PHASE3_COMPLETE.md
+│   │   ├── PHASE3_TEST_RESULTS.md
+│   │   ├── CRITICAL_GAP_ANALYSIS.md
+│   │   └── TASKS_SUMMARY.md
+│   ├── deployment/              # 🆕 Deployment guides
+│   │   ├── DEPLOYMENT.md
+│   │   ├── DEPLOY_CHECKLIST.md
+│   │   ├── DOCKER_QUICKSTART.md
+│   │   ├── DOCKER_DEPLOYMENT_SUMMARY.md
+│   │   ├── DOCKER_TEST_CHECKLIST.md
+│   │   └── ECS_DEPLOYMENT_GUIDE.md
+│   ├── summaries/               # 🆕 Feature summaries
+│   │   ├── AB_TESTING_SUMMARY.md
+│   │   ├── COMPLETION_SUMMARY.md
+│   │   ├── LANGSMITH_INTEGRATION_SUMMARY.md
+│   │   ├── SESSION_8_UX_OPTIMIZATION_SUMMARY.md
+│   │   ├── WEB_IMPLEMENTATION_SUMMARY.md
+│   │   └── PROJECT_STATUS_REPORT.md
+│   ├── archive/                 # 🆕 Legacy/archived docs
+│   │   ├── Step1-prompt.md, Step2-prompt.md, Step3-prompt.md
+│   │   ├── WEB_*.md (old web guides)
+│   │   └── LANGSMITH_QUICKREF.md
 │   ├── langsmith-quickstart.md
 │   ├── langsmith-integration.md
 │   ├── ab-testing-quickstart.md
 │   ├── ab-testing-guide.md
 │   ├── export-guide.md
-│   ├── development-plan.md
-│   └── test-script-conversion-plan.md
+│   └── development-plan.md
+│
+├── scripts/                     # 🆕 Utility scripts (moved from root)
+│   ├── run_tests.sh             # Test runner
+│   ├── run_web_server.sh        # Web server launcher
+│   ├── deploy.sh                # Deployment script
+│   ├── test_gemini_api.py       # Gemini API test
+│   └── test_web_integration.py  # Web integration tests
 │
 ├── .env.example                 # Environment template
 ├── requirements.txt             # Core dependencies
 ├── requirements-test.txt        # Test dependencies
-├── requirements-web.txt         # 🆕 Web UI dependencies
+├── requirements-web.txt         # Web UI dependencies
 ├── pytest.ini                   # Pytest configuration
-├── run_tests.sh                 # Test runner script
-├── run_web_server.sh            # 🆕 Web server launcher
-└── test_web_integration.py      # 🆕 Phase 3 integration tests
+├── run_tests.sh -> scripts/     # Symlink for convenience
+└── run_web_server.sh -> scripts/ # Symlink for convenience
 ```
 
 ---
