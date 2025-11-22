@@ -555,7 +555,7 @@ class TCCList(BaseModel):
 
 | 组件 | 技术选型 | 理由 |
 |------|---------|------|
-| **LLM** | Claude Sonnet 4.5 | • 长文本处理能力强<br>• 结构化推理准确<br>• 支持100K+ tokens |
+| **LLM** | DeepSeek/Claude/OpenAI/Gemini 3 Pro | • 多提供商支持<br>• Gemini 3 Pro: 1M上下文+64K输出+高级推理<br>• DeepSeek: 最佳性价比 |
 | **Agent框架** | LangGraph | • 支持复杂的多Agent编排<br>• 状态管理清晰<br>• 可视化调试 |
 | **数据验证** | Pydantic | • 强类型验证<br>• 与LLM输出结合好<br>• 自动生成JSON Schema |
 | **存储** | JSON + SQLite | • 轻量级<br>• 支持版本追踪<br>• 易于导入导出 |
@@ -764,6 +764,7 @@ ModifierActor只修正结构问题，不添加新创意。
   - [x] DeepSeek（默认，最具性价比）
   - [x] Anthropic Claude
   - [x] OpenAI GPT-4
+  - [x] **Google Gemini 3 Pro**（v2.7.0新增，推荐用于大脚本）
 - [x] LangGraph状态管理
 - [x] 结构化输出验证（Pydantic）
 - [x] 智能重试机制（tenacity）
@@ -871,8 +872,8 @@ ModifierActor只修正结构问题，不添加新创意。
 
 ## 📊 项目状态总览
 
-**版本号**：v2.4.1 (Session 8: UX优化与Bug修复)
-**开发进度**：✅ 100% 完成（三阶段Pipeline + TXT Parser + Web UI + LangSmith可观测性 + A/B测试框架 + 报告导出 + Mermaid可视化）
+**版本号**：v2.7.0 (Session 11: Gemini 3 Pro Upgrade)
+**开发进度**：✅ 100% 完成（三阶段Pipeline + TXT Parser + Web UI + LangSmith可观测性 + A/B测试框架 + 报告导出 + Mermaid可视化 + Gemini 3 Pro）
 **测试通过率**：100% (44/44 tests passed, 3 skipped)
 **生产就绪度**：✅ **生产就绪**（核心功能完全可用 + Web UI + Mermaid可视化 + 异步解析 + 0错误 + 完整可观测性）
 
@@ -962,7 +963,7 @@ ModifierActor只修正结构问题，不添加新创意。
      - 在 `run_parsing_job()` 中正确await async parser（`src/web/app.py:560-567`）
    - 结果：TXT解析正常工作，进度回调正确触发
 
-**最后更新**：2025-11-14
-**版本号**：v2.4.1
-**Prompt版本**：v2.1-Refactored + Auto-Merge
-**里程碑**：🎉 **v2.4.1 发布 - Session 8 UX优化 - Mermaid可视化修复 + 异步解析优化 - 生产就绪**
+**最后更新**：2025-11-22
+**版本号**：v2.7.0
+**Prompt版本**：v2.6.0-AAP (Action Analysis Protocol + Language Requirement)
+**里程碑**：🎉 **v2.7.0 发布 - Session 11 Gemini 3 Pro Upgrade - 高级推理能力 + 独立API Key支持 - 生产就绪**

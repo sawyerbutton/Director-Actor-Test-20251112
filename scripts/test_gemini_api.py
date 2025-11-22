@@ -17,24 +17,28 @@ def test_gemini_api():
     print("Gemini API 连通性测试")
     print("=" * 60)
 
-    # Get API key
-    api_key = os.getenv("GOOGLE_API_KEY")
+    # Get API key - prioritize GOOGLE_GEMINI3_API_KEY for Gemini 3 Pro
+    api_key = os.getenv("GOOGLE_GEMINI3_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        print("❌ 错误: GOOGLE_API_KEY 环境变量未设置")
+        print("❌ 错误: GOOGLE_GEMINI3_API_KEY 或 GOOGLE_API_KEY 环境变量未设置")
         return False
 
-    print(f"✅ API Key 已找到: {api_key[:20]}...{api_key[-4:]}")
+    key_source = "GOOGLE_GEMINI3_API_KEY" if os.getenv("GOOGLE_GEMINI3_API_KEY") else "GOOGLE_API_KEY"
+    print(f"✅ API Key 已找到 ({key_source}): {api_key[:20]}...{api_key[-4:]}")
 
-    # Test model
-    model_name = "gemini-2.5-flash"
+    # Test model - Gemini 3 Pro Preview
+    # Reference: https://ai.google.dev/gemini-api/docs/gemini-3
+    model_name = "gemini-3-pro-preview"
     print(f"\n📡 测试模型: {model_name}")
+    print("   (Gemini 3 Pro: 1M 上下文, 64K 输出, 高级推理能力)")
 
     try:
         # Create LLM instance
+        # Note: Gemini 3 Pro recommends temperature=1.0 (default)
         llm = ChatGoogleGenerativeAI(
             model=model_name,
             google_api_key=api_key,
-            temperature=0.0,
+            temperature=1.0,  # Gemini 3 recommends keeping default 1.0
             max_output_tokens=100,
         )
 

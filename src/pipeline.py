@@ -288,12 +288,20 @@ def create_llm(
         )
 
     elif provider == "gemini":
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable not set")
+        # Use Gemini 3 Pro as default (1M tokens context + 64K output)
+        # Gemini 3 Pro provides significant performance improvement over 2.5
+        # Reference: https://ai.google.dev/gemini-api/docs/gemini-3
+        model = model or "gemini-3-pro-preview"
 
-        # Use Gemini 2.5 Flash as default (1M tokens context + 65K output)
-        model = model or "gemini-2.5-flash"
+        # Prioritize GOOGLE_GEMINI3_API_KEY for Gemini 3 Pro, fallback to GOOGLE_API_KEY
+        if "gemini-3" in model:
+            api_key = os.getenv("GOOGLE_GEMINI3_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                raise ValueError("GOOGLE_GEMINI3_API_KEY or GOOGLE_API_KEY environment variable not set")
+        else:
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                raise ValueError("GOOGLE_API_KEY environment variable not set")
 
         logger.info(f"Creating Gemini LLM: {model} (max_tokens: {max_tokens})")
 

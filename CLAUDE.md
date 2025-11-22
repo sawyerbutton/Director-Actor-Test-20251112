@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.6.0 (2025-11-22)
+**Current Version**: 2.7.0 (2025-11-22)
 **Last Updated**: 2025-11-22
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol)
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini 3 Pro)
 
 ---
 
@@ -41,7 +41,7 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **Stage 3 (Modifier)**: ✅ Fixes structural issues with normalized issue_id validation
 - **Dependencies**: All packages installed (LangChain 1.0.5, LangGraph 1.0.3, LangSmith 0.1+)
 - **DeepSeek Integration**: Configured and operational
-- **Gemini 2.5 Flash Integration**: ✅ 1M context, 65K output (solves Stage 3 token limits)
+- **Gemini 3 Pro Integration**: ✅ 1M context, 64K output, advanced reasoning (solves Stage 3 token limits)
 - **Documentation**: Complete reference docs (120KB+ across 15+ files)
 - **Error Handling**: Intelligent JSON parsing and schema validation with 0 retries
 - **TXT Script Parser** (v2.4.0): ✅ Convert TXT scripts to JSON (Phase 1-3 complete)
@@ -57,6 +57,16 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 Chinese Output Enforcement** (v2.6.0): ✅ All prompts enforce Chinese output
 
 ### 🎉 Recent Fixes (2025-11-22)
+
+#### Session 11: Gemini 3 Pro Upgrade (v2.7.0)
+1. **Gemini 3 Pro Integration** (✅ NEW - Session 11)
+   - **Upgrade**: From Gemini 2.5 Flash to Gemini 3 Pro Preview
+   - **Model ID**: `gemini-3-pro-preview`
+   - **Features**: 1M context, 64K output, built-in advanced reasoning
+   - **New Config**: `GOOGLE_GEMINI3_API_KEY` environment variable
+   - **Fallback**: Uses `GOOGLE_API_KEY` if Gemini 3 key not set
+   - **Location**: `src/pipeline.py:290-310`, `scripts/test_gemini_api.py`
+   - **Reference**: https://ai.google.dev/gemini-api/docs/gemini-3
 
 #### Session 10: Discoverer Optimization - Action Analysis Protocol
 1. **Action Analysis Protocol (AAP)** (✅ NEW - Session 10)
@@ -1064,12 +1074,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.6.0 (Session 10: Discoverer Optimization - Action Analysis Protocol)
+**Project Version**: 2.7.0 (Session 11: Gemini 3 Pro Upgrade)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 1.9 (Added Session 10 AAP, middleware, validation)
+**Documentation Version**: 2.0 (Added Session 11 Gemini 3 Pro upgrade)
 **Last Updated**: 2025-11-22
-**Latest Commit**: TBD (feat: Session 10 - Action Analysis Protocol + Chinese output enforcement)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini + AAP - Production Ready)
+**Latest Commit**: TBD (feat: upgrade to Gemini 3 Pro with dedicated API key support)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini 3 Pro + AAP - Production Ready)
 
 ---
 
