@@ -1,8 +1,9 @@
 # ============================================================================
 # Docker Compose Configuration for Script Analysis System
 # ============================================================================
-# Version: 2.4.0
+# Version: 2.6.0
 # Purpose: Simplified deployment of screenplay analysis system with Web UI
+# Features: TCC analysis, Action Analysis Protocol (AAP), Chinese output
 # ============================================================================
 
 services:
