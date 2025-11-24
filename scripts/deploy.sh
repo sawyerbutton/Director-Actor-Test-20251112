@@ -78,14 +78,28 @@ check_prerequisites() {
 }
 
 # Build Docker image
+# Use NO_CACHE=1 environment variable to force rebuild without cache
 build_image() {
     log_info "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG} (commit: ${GIT_COMMIT})..."
-    docker build \
-        --build-arg APP_VERSION=${APP_VERSION} \
-        --build-arg GIT_COMMIT=${GIT_COMMIT} \
-        -t ${IMAGE_NAME}:${IMAGE_TAG} \
-        -t ${IMAGE_NAME}:latest \
-        .
+
+    # Check if NO_CACHE is set
+    if [ "${NO_CACHE}" = "1" ]; then
+        log_info "Building without cache (NO_CACHE=1)..."
+        docker build \
+            --no-cache \
+            --build-arg APP_VERSION=${APP_VERSION} \
+            --build-arg GIT_COMMIT=${GIT_COMMIT} \
+            -t ${IMAGE_NAME}:${IMAGE_TAG} \
+            -t ${IMAGE_NAME}:latest \
+            .
+    else
+        docker build \
+            --build-arg APP_VERSION=${APP_VERSION} \
+            --build-arg GIT_COMMIT=${GIT_COMMIT} \
+            -t ${IMAGE_NAME}:${IMAGE_TAG} \
+            -t ${IMAGE_NAME}:latest \
+            .
+    fi
     log_success "Docker image built: ${IMAGE_NAME}:${IMAGE_TAG}"
 }
 
@@ -236,11 +250,17 @@ case "${1:-deploy}" in
         echo "  Image Tag:    ${IMAGE_NAME}:${IMAGE_TAG}"
         echo "============================================"
         ;;
+    rebuild)
+        # Force rebuild without cache
+        log_info "Force rebuilding without Docker cache..."
+        NO_CACHE=1 deploy
+        ;;
     *)
-        echo "Usage: $0 {deploy|build|start|stop|restart|logs|status|version}"
+        echo "Usage: $0 {deploy|rebuild|build|start|stop|restart|logs|status|version}"
         echo ""
         echo "Commands:"
         echo "  deploy   - Full deployment (build + start)"
+        echo "  rebuild  - Full deployment with --no-cache (force rebuild)"
         echo "  build    - Build Docker image only"
         echo "  start    - Start container"
         echo "  stop     - Stop container"
@@ -248,6 +268,9 @@ case "${1:-deploy}" in
         echo "  logs     - View container logs"
         echo "  status   - Check container status"
         echo "  version  - Show version information"
+        echo ""
+        echo "Environment variables:"
+        echo "  NO_CACHE=1  - Force rebuild without Docker cache"
         exit 1
         ;;
 esac
