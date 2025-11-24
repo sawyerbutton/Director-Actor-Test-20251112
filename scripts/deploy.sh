@@ -116,7 +116,8 @@ stop_container() {
 # Start container using docker-compose
 start_with_compose() {
     log_info "Starting container with docker-compose..."
-    docker-compose up -d
+    # Pass APP_VERSION to docker-compose to use the correct image tag
+    APP_VERSION=${APP_VERSION} docker-compose up -d
     log_success "Container started with docker-compose"
 }
 

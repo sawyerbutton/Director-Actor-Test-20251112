@@ -11,13 +11,13 @@ services:
   # Main Application Service
   # ==========================================================================
   web:
-    image: screenplay-analysis:${APP_VERSION:-2.6.0}
+    image: screenplay-analysis:${APP_VERSION:-2.8.0}
     container_name: screenplay-web
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        - APP_VERSION=${APP_VERSION:-2.6.0}
+        - APP_VERSION=${APP_VERSION:-2.8.0}
     ports:
       - "8014:8000"
     environment:
