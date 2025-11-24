@@ -158,7 +158,7 @@
 
 1. **Web UI 修改** (`templates/index.html`)
    - 当选择 Gemini 提供商时，显示模型子选项下拉框
-   - 选项: Gemini 2.5 Flash (推荐) / Gemini 2.5 Pro / Gemini 2.0 Flash
+   - 选项: Gemini 2.5 Flash (推荐) / Gemini 2.5 Pro / Gemini 2.0 Flash / Gemini 3 Pro Preview
    - 动态显示/隐藏模型选择器
 
 2. **前端逻辑** (`static/js/upload.js`)
@@ -183,6 +183,7 @@
 - `gemini-2.5-flash`: 快速响应，推荐用于一般分析
 - `gemini-2.5-pro`: 高级推理，适合复杂分析
 - `gemini-2.0-flash`: 上一代 Flash 模型
+- `gemini-3-pro-preview`: Gemini 3 Pro 预览版，高级推理能力
 
 ---
 
@@ -467,9 +468,9 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 ## 📝 变更日志
 
 ### v2.8.0 (2025-11-24) - Session 12 ✅ 完成
-- 🆕 **Gemini 模型选择**: Web UI 支持选择 Gemini 2.5 Flash / 2.5 Pro / 2.0 Flash
+- 🆕 **Gemini 模型选择**: Web UI 支持选择 Gemini 2.5 Flash / 2.5 Pro / 2.0 Flash / 3 Pro Preview
 - 🆕 **模型子选项**: 当选择 Gemini 时显示模型版本下拉框
-- 🆕 **动态 timeout**: Pro 模型 120s, Flash 模型 60s
+- 🆕 **动态 timeout**: Pro/Gemini 3 模型 120s, Flash 模型 60s
 - 🔧 **部署修复**: APP_VERSION 传递给 docker-compose
 - 🔧 **模型名称修复**: 使用正确的模型 ID (gemini-2.5-flash)
 - 🔧 **新增 rebuild 命令**: `./scripts/deploy.sh rebuild` 强制重建

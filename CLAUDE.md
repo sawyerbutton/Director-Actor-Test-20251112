@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.7.0 (2025-11-24)
+**Current Version**: 2.8.0 (2025-11-24)
 **Last Updated**: 2025-11-24
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini 3 Pro + Version Tracking)
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini Model Selection)
 
 ---
 
@@ -56,8 +56,30 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 Scene Validation Layer** (v2.6.0): ✅ Atomic reverse verification
 - **🆕 Chinese Output Enforcement** (v2.6.0): ✅ All prompts enforce Chinese output
 - **🆕 Version Tracking** (v2.7.0): ✅ Centralized version info, health endpoint, UI footer display
+- **🆕 Gemini Model Selection** (v2.8.0): ✅ Web UI supports 4 Gemini models (2.5 Flash/Pro, 2.0 Flash, 3 Pro Preview)
 
 ### 🎉 Recent Fixes (2025-11-24)
+
+#### Session 12: Gemini Model Selection (v2.8.0)
+1. **Gemini Model Selection UI** (✅ NEW - Session 12)
+   - **Feature**: Web UI dropdown to select Gemini model version
+   - **Available Models**:
+     - `gemini-2.5-flash` - Fast response, recommended
+     - `gemini-2.5-pro` - Advanced reasoning
+     - `gemini-2.0-flash` - Previous generation
+     - `gemini-3-pro-preview` - Gemini 3 Pro preview
+   - **Location**: `templates/index.html:113-128`, `static/js/upload.js`
+
+2. **Model-Specific Timeout** (✅ NEW - Session 12)
+   - Pro/Gemini 3 models: 120s timeout
+   - Flash models: 60s timeout
+   - **Location**: `src/pipeline.py:303-310`
+
+3. **Deployment Fix** (✅ FIXED - Session 12)
+   - **Problem**: docker-compose not receiving APP_VERSION
+   - **Solution**: `APP_VERSION=${APP_VERSION} docker-compose up -d`
+   - **New Command**: `./scripts/deploy.sh rebuild` for force rebuild
+   - **Location**: `scripts/deploy.sh:117-122`
 
 #### Session 11: Gemini 3 Pro + Version Tracking (v2.7.0)
 1. **Gemini 3 Pro Integration** (✅ NEW - Session 11)
@@ -805,15 +827,17 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 3. Compare temperatures: `python -m src.cli ab-test script.json --temperatures 0.0,0.7`
 4. Review results in terminal and `ab_tests/` directory
 
-### 🆕 Task: Use Gemini for Large Scripts (v2.4.1+)
+### 🆕 Task: Use Gemini for Large Scripts (v2.8.0+)
 1. Set environment: `LLM_PROVIDER=gemini` in `.env`
 2. Add API key: `GOOGLE_API_KEY=your_key_here`
-3. Gemini 2.5 Flash offers:
-   - 1M token context window (vs DeepSeek's 64K)
-   - 65K output tokens (vs DeepSeek's 16K)
-   - Solves Stage 3 JSON truncation issues
-4. Test API: `python scripts/test_gemini_api.py`
-5. Run analysis: Web UI will automatically use configured provider
+3. Available Gemini models (select from Web UI):
+   - `gemini-2.5-flash` - Fast response, recommended for general analysis
+   - `gemini-2.5-pro` - Advanced reasoning, for complex analysis
+   - `gemini-2.0-flash` - Previous generation Flash
+   - `gemini-3-pro-preview` - Gemini 3 Pro preview, advanced reasoning
+4. All models offer 1M context + 64K output (solves Stage 3 JSON truncation)
+5. Test API: `python scripts/test_gemini_api.py`
+6. Run analysis: Web UI shows model selector when Gemini is selected
 
 ### 🆕 Task: Analyze Performance Metrics
 1. Run analysis with LangSmith enabled
@@ -1106,12 +1130,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.7.0 (Session 11: Gemini 3 Pro + Version Tracking)
+**Project Version**: 2.8.0 (Session 12: Gemini Model Selection)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 2.1 (Added Version Tracking guide, updated Gemini troubleshooting)
+**Documentation Version**: 2.2 (Added Gemini Model Selection, deployment fix documentation)
 **Last Updated**: 2025-11-24
-**Latest Commit**: f5ec6dc (fix: handle Gemini 3 Pro multi-part response format)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini 3 Pro + AAP + Version Tracking - Production Ready)
+**Latest Commit**: 41d470d (fix: restore Gemini 3 Pro Preview model option)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini Model Selection + AAP + Version Tracking - Production Ready)
 
 ---
 
