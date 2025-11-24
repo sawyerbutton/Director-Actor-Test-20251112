@@ -293,7 +293,6 @@ def create_llm(
         #   - gemini-2.5-flash: Fast, recommended for most tasks
         #   - gemini-2.5-pro: More capable, slower
         #   - gemini-2.0-flash: Previous generation flash
-        #   - gemini-exp-1206: Experimental model
         model = model or "gemini-2.5-flash"
 
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -303,10 +302,10 @@ def create_llm(
         logger.info(f"Creating Gemini LLM: {model} (max_tokens: {max_tokens})")
 
         # Set timeout based on model type:
-        # - Pro/experimental models: slower, needs longer timeout
+        # - Pro models: slower, needs longer timeout
         # - Flash models: fast, can use shorter timeout
-        if "pro" in model or "exp" in model:
-            timeout = 120  # 2 minutes for Pro/experimental models
+        if "pro" in model:
+            timeout = 120  # 2 minutes for Pro models
         else:
             timeout = 60   # 1 minute for Flash models
 

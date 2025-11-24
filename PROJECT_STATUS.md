@@ -151,15 +151,14 @@
 **目标**: 在 Web UI 上支持选择不同的 Gemini 模型版本
 
 **背景**:
-- Gemini 3 Pro (`gemini-3-pro-preview`): 高级推理，但响应慢 (~15-20s/请求)
-- Gemini 2.5 Flash (`gemini-2.5-flash-preview-05-20`): 快速响应，适合 TXT 解析
-- 用户需要根据场景选择合适的模型
+- 用户需要根据场景选择合适的 Gemini 模型
+- 不同模型有不同的速度和能力特性
 
 **实现内容**:
 
 1. **Web UI 修改** (`templates/index.html`)
    - 当选择 Gemini 提供商时，显示模型子选项下拉框
-   - 选项: Gemini 2.5 Flash (推荐，快速) / Gemini 3 Pro (高级推理)
+   - 选项: Gemini 2.5 Flash (推荐) / Gemini 2.5 Pro / Gemini 2.0 Flash
    - 动态显示/隐藏模型选择器
 
 2. **前端逻辑** (`static/js/upload.js`)
@@ -168,14 +167,22 @@
    - 更新 provider 提示信息
 
 3. **Pipeline 优化** (`src/pipeline.py`)
-   - 模型特定 timeout: Gemini 3 Pro 120s, Gemini 2.5 Flash 60s
-   - 根据模型名自动选择合适的超时配置
+   - 默认模型: `gemini-2.5-flash`
+   - 模型特定 timeout: Pro 模型 120s, Flash 模型 60s
 
-**测试结果**:
-- 单元测试: 69 passed, 4 skipped ✅
-- Web UI: Gemini 模型选择器正确显示 ✅
-- Health 端点: 版本 2.8.0 ✅
-- 模型 timeout 逻辑验证 ✅
+4. **部署脚本修复** (`scripts/deploy.sh`)
+   - 修复 APP_VERSION 未传递给 docker-compose 的问题
+   - 新增 `rebuild` 命令强制重建镜像
+
+**修复的问题**:
+- 模型名称错误: `gemini-2.5-flash-preview-05-20` → `gemini-2.5-flash`
+- docker-compose 未接收 APP_VERSION 导致使用错误镜像
+- 新增 `--no-cache` 重建选项
+
+**可用 Gemini 模型**:
+- `gemini-2.5-flash`: 快速响应，推荐用于一般分析
+- `gemini-2.5-pro`: 高级推理，适合复杂分析
+- `gemini-2.0-flash`: 上一代 Flash 模型
 
 ---
 
@@ -460,13 +467,17 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 ## 📝 变更日志
 
 ### v2.8.0 (2025-11-24) - Session 12 ✅ 完成
-- 🆕 **Gemini 模型选择**: Web UI 支持选择 Gemini 2.5 Flash / 3 Pro
+- 🆕 **Gemini 模型选择**: Web UI 支持选择 Gemini 2.5 Flash / 2.5 Pro / 2.0 Flash
 - 🆕 **模型子选项**: 当选择 Gemini 时显示模型版本下拉框
-- 🆕 **动态 timeout**: Gemini 3 Pro 120s, Gemini 2.5 Flash 60s
+- 🆕 **动态 timeout**: Pro 模型 120s, Flash 模型 60s
+- 🔧 **部署修复**: APP_VERSION 传递给 docker-compose
+- 🔧 **模型名称修复**: 使用正确的模型 ID (gemini-2.5-flash)
+- 🔧 **新增 rebuild 命令**: `./scripts/deploy.sh rebuild` 强制重建
 - 📄 更新 `templates/index.html` - 添加模型选择 UI
 - 📄 更新 `static/js/upload.js` - 前端模型选择逻辑
-- 📄 更新 `src/pipeline.py` - 模型特定 timeout 配置
-- 📄 更新 `src/version.py` - 版本号 2.8.0
+- 📄 更新 `src/pipeline.py` - 模型配置和 timeout
+- 📄 更新 `scripts/deploy.sh` - rebuild 命令和 APP_VERSION 传递
+- 📄 更新 `docker-compose.yml` - 默认版本 2.8.0
 
 ### v2.7.0 (2025-11-24) - Session 11
 - 🆕 **版本追踪系统**: 集中管理版本信息，便于部署识别
