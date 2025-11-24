@@ -396,18 +396,41 @@ Characters: {', '.join(characters)}
             logger.error(f"Error extracting key events for {scene_id}: {e}")
             return []
 
-    def _parse_json_response(self, response: str) -> Dict:
+    def _parse_json_response(self, response) -> Dict:
         """
         Parse JSON from LLM response.
 
         Handles cases where LLM includes extra text around JSON.
 
         Args:
-            response: LLM response text
+            response: LLM response text (str or list for multi-part responses)
 
         Returns:
             Parsed JSON dictionary
         """
+        # Handle Gemini's multi-part response format (list of content parts)
+        # Gemini 3 Pro returns: [{'type': 'text', 'text': '...', 'extras': {...}}]
+        if isinstance(response, list):
+            # Extract text from list of parts
+            text_parts = []
+            for part in response:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                elif isinstance(part, dict):
+                    # Gemini format: {'type': 'text', 'text': '...'}
+                    if 'text' in part:
+                        text_parts.append(part['text'])
+                    elif 'content' in part:
+                        text_parts.append(part['content'])
+                elif hasattr(part, 'text'):
+                    text_parts.append(part.text)
+            response = ''.join(text_parts)
+            logger.debug(f"Extracted text from list response: {response[:100]}...")
+
+        # Ensure response is a string
+        if not isinstance(response, str):
+            response = str(response)
+
         # Try direct parsing first
         try:
             return json.loads(response)
