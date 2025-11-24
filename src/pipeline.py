@@ -288,30 +288,26 @@ def create_llm(
         )
 
     elif provider == "gemini":
-        # Use Gemini 3 Pro as default (1M tokens context + 64K output)
-        # Gemini 3 Pro provides significant performance improvement over 2.5
-        # Reference: https://ai.google.dev/gemini-api/docs/gemini-3
-        model = model or "gemini-3-pro-preview"
+        # Use Gemini 2.5 Flash as default (fast and capable)
+        # Reference: https://ai.google.dev/gemini-api/docs/models
+        # Available models:
+        #   - gemini-2.5-flash: Fast, recommended for most tasks
+        #   - gemini-2.5-pro: More capable, slower
+        model = model or "gemini-2.5-flash"
 
-        # Prioritize GOOGLE_GEMINI3_API_KEY for Gemini 3 Pro, fallback to GOOGLE_API_KEY
-        if "gemini-3" in model:
-            api_key = os.getenv("GOOGLE_GEMINI3_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            if not api_key:
-                raise ValueError("GOOGLE_GEMINI3_API_KEY or GOOGLE_API_KEY environment variable not set")
-        else:
-            api_key = os.getenv("GOOGLE_API_KEY")
-            if not api_key:
-                raise ValueError("GOOGLE_API_KEY environment variable not set")
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable not set")
 
         logger.info(f"Creating Gemini LLM: {model} (max_tokens: {max_tokens})")
 
         # Set timeout based on model:
-        # - Gemini 3 Pro: slower (~15-20s/request), needs longer timeout
-        # - Gemini 2.5 Flash: faster (~2-3s/request), can use shorter timeout
-        if "gemini-3" in model:
-            timeout = 120  # 2 minutes for slow Gemini 3 Pro
+        # - gemini-2.5-pro: more capable but slower, needs longer timeout
+        # - gemini-2.5-flash: fast, can use shorter timeout
+        if "pro" in model:
+            timeout = 120  # 2 minutes for Pro models
         else:
-            timeout = 60   # 1 minute for faster Gemini 2.5 Flash
+            timeout = 60   # 1 minute for Flash models
 
         return ChatGoogleGenerativeAI(
             model=model,
