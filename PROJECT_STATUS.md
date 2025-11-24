@@ -1,7 +1,7 @@
 # 项目开发进度与遗留问题
 
 **项目名称**: 剧本叙事结构分析系统 (Script Narrative Structure Analysis System)
-**当前版本**: v2.8.0
+**当前版本**: v2.8.1
 **更新日期**: 2025-11-24
 **状态**: ✅ 生产就绪 (Production Ready)
 
@@ -23,12 +23,14 @@
 | **动作分析协议 (AAP)** | ✅ 完成 | 100% | **Session 10 新增** - Discoverer 优化 |
 | **版本追踪系统** | ✅ 完成 | 100% | **Session 11 新增** - 部署版本识别 |
 | **Gemini 模型选择** | ✅ 完成 | 100% | **Session 12 新增** - Web UI 模型切换 |
+| **TXT 解析器中文格式** | ✅ 完成 | 100% | **Session 13 新增** - 支持中文顿号场景格式 |
+| **Gemini 3 专用 API Key** | ✅ 完成 | 100% | **Session 13 新增** - 双 API Key 支持 |
 
 **总体完成度**: 100%
 
 ---
 
-## 📅 开发历程 (Session 1-12)
+## 📅 开发历程 (Session 1-13)
 
 ### Session 1-6: 基础功能开发 (2025-11-12 ~ 2025-11-13)
 - Web 界面开发 (2,310 行代码)
@@ -184,6 +186,70 @@
 - `gemini-2.5-pro`: 高级推理，适合复杂分析
 - `gemini-2.0-flash`: 上一代 Flash 模型
 - `gemini-3-pro-preview`: Gemini 3 Pro 预览版，高级推理能力
+
+### Session 13: TXT 解析器增强 + Gemini 3 专用 API Key (2025-11-24) ✅ 完成
+**目标**: 修复 TXT 解析器对中文顿号格式的支持，并实现 Gemini 3 专用 API Key
+
+**背景**:
+- 用户上传的剧本使用中文顿号格式 (`1、场景名`)，未被正确识别
+- Gemini 3 Pro Preview 免费配额耗尽，需要使用专用付费 API Key
+
+**发现的问题**:
+
+1. **TXT 解析器只识别 1 个场景** (实际 15 个)
+   - 原因: 剧本使用 `1、上海家卧室，日，内` 格式
+   - 中文顿号 `、` 未在场景头模式中支持
+
+2. **Stage 3 ModificationValidation 导入错误**
+   - `NameError: name 'ModificationValidation' is not defined`
+   - 缺失 import 语句
+
+3. **Gemini 3 Pro Preview 配额超限 (429 错误)**
+   - 免费 API Key 配额用完
+   - 需要使用专用的 `GOOGLE_GEMINI3_API_KEY`
+
+**实现内容**:
+
+1. **TXT 解析器中文顿号支持** (`src/parser/txt_parser.py:35`)
+   ```python
+   # 新增场景头模式
+   r'^(\d+)[、，,]\s*(.+)',  # 1、酒吧 - 夜 (中文顿号格式)
+   ```
+   - 支持中文顿号 `、`、中文逗号 `，`、英文逗号 `,`
+
+2. **ModificationValidation 导入修复** (`src/pipeline.py:625`)
+   ```python
+   from prompts.schemas import ..., ModificationValidation
+   ```
+
+3. **Gemini 3 专用 API Key** (`src/pipeline.py:299-308`)
+   ```python
+   if "gemini-3" in model:
+       api_key = os.getenv("GOOGLE_GEMINI3_API_KEY") or os.getenv("GOOGLE_API_KEY")
+   ```
+   - Gemini 3 模型优先使用 `GOOGLE_GEMINI3_API_KEY`
+   - 如未设置则 fallback 到 `GOOGLE_API_KEY`
+
+**测试结果**:
+
+| 剧本 | 场景数 | Stage 1 | Stage 2 | Stage 3 | 总耗时 | 状态 |
+|------|--------|---------|---------|---------|--------|------|
+| 蓝1 第三版.txt | 15 | 3 TCCs (0.92-0.98) | A:1, B:2, C:0 | 10/10 fixed | 100.24s | ✅ |
+| 百妖1.txt | 12 | 3 TCCs (0.90-0.98) | A:1, B:1, C:1 | 10/10 fixed | 191.44s | ✅ |
+
+**识别的 TCC (百妖1.txt)**:
+- TCC_01 (A-line): 玉鼠精为其电商平台项目寻求创业办投资 (conf: 0.98)
+- TCC_02 (B-line): 悟空因外貌与过往经历产生的自我认同困境 (conf: 0.90)
+- TCC_03 (C-line): 阿蠢对偶像玉鼠精从盲目崇拜到幻想破灭 (conf: 0.95)
+
+**修改文件**:
+- `src/parser/txt_parser.py:35` - 新增中文顿号场景格式
+- `src/pipeline.py:299-308` - Gemini 3 专用 API Key 逻辑
+- `src/pipeline.py:625` - 添加 ModificationValidation 导入
+
+**结论**:
+- Gemini 2.5 Pro 运行稳定，无超时问题，推荐用于生产
+- Gemini 3 Pro Preview 响应较慢 (15-20s/请求)，建议仅在需要高级推理时使用
 
 ---
 
@@ -467,6 +533,15 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ## 📝 变更日志
 
+### v2.8.1 (2025-11-24) - Session 13 ✅ 完成
+- 🆕 **TXT 解析器中文顿号支持**: 新增 `1、场景名` 格式识别
+- 🆕 **Gemini 3 专用 API Key**: 支持 `GOOGLE_GEMINI3_API_KEY` 环境变量
+- 🔧 **ModificationValidation 导入修复**: Stage 3 缺失 import 语句
+- 🧪 **完整测试**: 蓝1 第三版.txt (15 场景) + 百妖1.txt (12 场景) 全部通过
+- 📄 更新 `src/parser/txt_parser.py:35` - 新增中文顿号场景格式
+- 📄 更新 `src/pipeline.py:299-308` - Gemini 3 API Key 逻辑
+- 📄 更新 `src/pipeline.py:625` - 添加 ModificationValidation 导入
+
 ### v2.8.0 (2025-11-24) - Session 12 ✅ 完成
 - 🆕 **Gemini 模型选择**: Web UI 支持选择 Gemini 2.5 Flash / 2.5 Pro / 2.0 Flash / 3 Pro Preview
 - 🆕 **模型子选项**: 当选择 Gemini 时显示模型版本下拉框
@@ -531,6 +606,6 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ---
 
-**文档版本**: 1.2
+**文档版本**: 1.3
 **最后更新**: 2025-11-24
 **维护者**: AI Assistant (Claude Code)

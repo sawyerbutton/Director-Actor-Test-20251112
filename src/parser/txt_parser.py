@@ -32,6 +32,7 @@ class TXTScriptParser(ScriptParser):
         r'^第([一二三四五六七八九十百]+)场\s+(.+)',   # 第一场 酒吧 - 夜
         r'^(INT\.|EXT\.)\s+(.+)',                  # INT. 酒吧 - 夜
         r'^S(\d+)\s*[：:]\s*(.+)',                # S1: 酒吧 - 夜
+        r'^(\d+)[、，,]\s*(.+)',                   # 1、酒吧 - 夜 (中文顿号格式)
     ]
 
     # Scene separator patterns

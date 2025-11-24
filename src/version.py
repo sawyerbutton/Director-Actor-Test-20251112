@@ -9,10 +9,10 @@ import subprocess
 from functools import lru_cache
 
 # Application version - update this when releasing new versions
-__version__ = "2.8.0"
+__version__ = "2.8.1"
 
 # Version name for display
-VERSION_NAME = "Session 12: Gemini Model Selection"
+VERSION_NAME = "Session 13: TXT Parser Enhancement + Gemini 3 API Key"
 
 # Build info
 BUILD_DATE = "2025-11-24"

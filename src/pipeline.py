@@ -296,9 +296,16 @@ def create_llm(
         #   - gemini-3-pro-preview: Gemini 3 Pro preview version
         model = model or "gemini-2.5-flash"
 
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable not set")
+        # Use dedicated Gemini 3 API key if available for Gemini 3 models
+        if "gemini-3" in model:
+            api_key = os.getenv("GOOGLE_GEMINI3_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                raise ValueError("GOOGLE_GEMINI3_API_KEY or GOOGLE_API_KEY environment variable not set")
+            logger.info(f"Using GOOGLE_GEMINI3_API_KEY for Gemini 3 model")
+        else:
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                raise ValueError("GOOGLE_API_KEY environment variable not set")
 
         logger.info(f"Creating Gemini LLM: {model} (max_tokens: {max_tokens})")
 
@@ -622,7 +629,7 @@ class ModifierActor:
 
         try:
             # Generate audit report (simple version - real implementation would be more sophisticated)
-            from prompts.schemas import validate_setup_payoff_integrity, AuditReport, Issue, SuggestedFix
+            from prompts.schemas import validate_setup_payoff_integrity, AuditReport, Issue, SuggestedFix, ModificationValidation
 
             script = state["script"]
             errors = validate_setup_payoff_integrity(script)

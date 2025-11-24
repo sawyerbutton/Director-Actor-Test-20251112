@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.8.0 (2025-11-24)
+**Current Version**: 2.8.1 (2025-11-24)
 **Last Updated**: 2025-11-24
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini Model Selection)
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key)
 
 ---
 
@@ -57,8 +57,33 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 Chinese Output Enforcement** (v2.6.0): ✅ All prompts enforce Chinese output
 - **🆕 Version Tracking** (v2.7.0): ✅ Centralized version info, health endpoint, UI footer display
 - **🆕 Gemini Model Selection** (v2.8.0): ✅ Web UI supports 4 Gemini models (2.5 Flash/Pro, 2.0 Flash, 3 Pro Preview)
+- **🆕 Chinese Scene Format** (v2.8.1): ✅ TXT parser supports `1、场景名` format (Chinese 顿号)
+- **🆕 Gemini 3 Dedicated API Key** (v2.8.1): ✅ Dual API key support (`GOOGLE_GEMINI3_API_KEY`)
 
 ### 🎉 Recent Fixes (2025-11-24)
+
+#### Session 13: TXT Parser Enhancement + Gemini 3 API Key (v2.8.1)
+1. **Chinese Scene Format Support** (✅ NEW - Session 13)
+   - **Problem**: TXT parser only detected 1 scene instead of 15 for scripts using `1、场景名` format
+   - **Solution**: Added regex pattern `r'^(\d+)[、，,]\s*(.+)'` to `SCENE_PATTERNS`
+   - **Location**: `src/parser/txt_parser.py:35`
+   - **Supports**: Chinese 顿号 `、`, Chinese comma `，`, English comma `,`
+
+2. **Gemini 3 Dedicated API Key** (✅ NEW - Session 13)
+   - **Problem**: Gemini 3 Pro Preview free tier quota exhausted (429 errors)
+   - **Solution**: Use `GOOGLE_GEMINI3_API_KEY` for Gemini 3 models, fallback to `GOOGLE_API_KEY`
+   - **Location**: `src/pipeline.py:299-308`
+   - **Config**: Set `GOOGLE_GEMINI3_API_KEY` in `.env` for paid Gemini 3 access
+
+3. **ModificationValidation Import Fix** (✅ FIXED - Session 13)
+   - **Problem**: `NameError: name 'ModificationValidation' is not defined` in Stage 3
+   - **Solution**: Added missing import statement
+   - **Location**: `src/pipeline.py:625`
+
+4. **End-to-End Testing** (✅ VERIFIED - Session 13)
+   - **蓝1 第三版.txt**: 15 scenes, 3 TCCs, 100.24s total, 0 errors
+   - **百妖1.txt**: 12 scenes, 3 TCCs, 191.44s total, 0 errors
+   - **Model**: Gemini 2.5 Pro (stable, recommended)
 
 #### Session 12: Gemini Model Selection (v2.8.0)
 1. **Gemini Model Selection UI** (✅ NEW - Session 12)
