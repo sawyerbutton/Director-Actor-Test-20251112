@@ -305,14 +305,20 @@ def create_llm(
 
         logger.info(f"Creating Gemini LLM: {model} (max_tokens: {max_tokens})")
 
-        # Gemini 3 Pro has slower response times (~15-20s per request)
-        # Set longer timeout to avoid premature failures
+        # Set timeout based on model:
+        # - Gemini 3 Pro: slower (~15-20s/request), needs longer timeout
+        # - Gemini 2.5 Flash: faster (~2-3s/request), can use shorter timeout
+        if "gemini-3" in model:
+            timeout = 120  # 2 minutes for slow Gemini 3 Pro
+        else:
+            timeout = 60   # 1 minute for faster Gemini 2.5 Flash
+
         return ChatGoogleGenerativeAI(
             model=model,
             google_api_key=api_key,
             temperature=temperature,
             max_output_tokens=max_tokens,
-            timeout=120,  # 2 minutes timeout for slow Gemini 3 Pro responses
+            timeout=timeout,
         )
 
     else:

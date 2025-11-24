@@ -13,10 +13,41 @@ document.addEventListener('DOMContentLoaded', function() {
     const fileLabel = document.getElementById('fileLabel');
     const hintText = document.getElementById('hintText');
     const llmEnhancementDiv = document.getElementById('llmEnhancementDiv');
+    const providerSelect = document.getElementById('provider');
+    const geminiModelDiv = document.getElementById('geminiModelDiv');
+    const geminiModelSelect = document.getElementById('geminiModel');
+    const providerHint = document.getElementById('providerHint');
 
     // File type radio buttons
     const fileTypeJSON = document.getElementById('fileTypeJSON');
     const fileTypeTXT = document.getElementById('fileTypeTXT');
+
+    // Provider hint messages
+    const providerHints = {
+        'deepseek': 'DeepSeek 提供最佳性价比，响应快速',
+        'anthropic': 'Claude 提供高质量分析，适合复杂场景',
+        'openai': 'OpenAI GPT-4 系列，广泛适用',
+        'gemini': 'Gemini 提供 64K 输出 + 1M 上下文，可选择不同模型版本'
+    };
+
+    // Handle provider change - show/hide Gemini model selector
+    providerSelect.addEventListener('change', function() {
+        const selectedProvider = this.value;
+
+        // Update hint text
+        if (providerHint && providerHints[selectedProvider]) {
+            providerHint.textContent = providerHints[selectedProvider];
+        }
+
+        // Show/hide Gemini model selection
+        if (geminiModelDiv) {
+            if (selectedProvider === 'gemini') {
+                geminiModelDiv.style.display = 'block';
+            } else {
+                geminiModelDiv.style.display = 'none';
+            }
+        }
+    });
 
     // Handle file type change
     fileTypeJSON.addEventListener('change', function() {
@@ -44,10 +75,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Get form values
         const provider = document.getElementById('provider').value;
-        const model = document.getElementById('model').value;
+        let model = document.getElementById('model').value;
         const exportMarkdown = document.getElementById('exportMarkdown').checked;
         const useLLMEnhancement = document.getElementById('useLLMEnhancement').checked;
         const fileType = document.querySelector('input[name="fileType"]:checked').value;
+
+        // If Gemini is selected and no custom model specified, use the Gemini model selector
+        if (provider === 'gemini' && !model && geminiModelSelect) {
+            model = geminiModelSelect.value;
+            console.log('Using Gemini model:', model);
+        }
 
         // Validate file
         if (!fileInput.files.length) {

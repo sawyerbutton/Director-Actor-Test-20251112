@@ -95,16 +95,32 @@
                             <option value="deepseek" {% if default_provider == 'deepseek' %}selected{% endif %}>DeepSeek (推荐)</option>
                             <option value="anthropic" {% if default_provider == 'anthropic' %}selected{% endif %}>Anthropic Claude</option>
                             <option value="openai" {% if default_provider == 'openai' %}selected{% endif %}>OpenAI</option>
-                            <option value="gemini" {% if default_provider == 'gemini' %}selected{% endif %}>Google Gemini 3 Pro (64K output)</option>
+                            <option value="gemini" {% if default_provider == 'gemini' %}selected{% endif %}>Google Gemini</option>
                         </select>
                         <div class="form-text">
                             <i class="bi bi-lightbulb"></i>
                             <span id="providerHint">
                                 {% if default_provider == 'gemini' %}
-                                Gemini 3 Pro 提供 64K 输出 + 1M 上下文 + 高级推理能力
+                                Gemini 提供 64K 输出 + 1M 上下文，可选择不同模型版本
                                 {% else %}
                                 DeepSeek 提供最佳性价比
                                 {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Gemini Model Selection (Only when Gemini is selected) -->
+                    <div class="mb-3" id="geminiModelDiv" style="display: {% if default_provider == 'gemini' %}block{% else %}none{% endif %};">
+                        <label for="geminiModel" class="form-label">选择 Gemini 模型版本</label>
+                        <select class="form-select" id="geminiModel">
+                            <option value="gemini-2.5-flash-preview-05-20" selected>Gemini 2.5 Flash (快速响应，推荐)</option>
+                            <option value="gemini-3-pro-preview">Gemini 3 Pro (高级推理，较慢)</option>
+                        </select>
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i>
+                            <span id="geminiModelHint">
+                                Gemini 2.5 Flash: 响应快 (~2-3s)，适合 TXT 解析和一般分析<br>
+                                Gemini 3 Pro: 推理强但慢 (~15-20s)，适合复杂脚本深度分析
                             </span>
                         </div>
                     </div>
