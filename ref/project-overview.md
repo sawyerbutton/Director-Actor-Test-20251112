@@ -37,7 +37,7 @@ Help screenwriters and production teams:
 ## Technology Stack
 - **Language**: Python 3.8+
 - **LLM Framework**: LangChain 1.0.5 + LangGraph 1.0.3
-- **LLM Providers**: DeepSeek (default), Claude Sonnet 4.5, OpenAI GPT-4
+- **LLM Providers**: DeepSeek (default), Gemini 3 Pro, Claude Sonnet 4.5, OpenAI GPT-4
 - **Validation**: Pydantic v2
 - **Testing**: pytest
 - **Templating**: Jinja2 (for report generation)
@@ -93,6 +93,29 @@ Help screenwriters and production teams:
 
 ## Recent Achievements
 
+### v2.7.0 (2025-11-24) - Gemini 3 Pro + Version Tracking 🆕
+- ✅ Upgraded to Gemini 3 Pro for advanced reasoning (1M context, 64K output)
+- ✅ Fixed Gemini multi-part response format handling in LLM enhancer
+- ✅ Added centralized version tracking (`src/version.py`)
+- ✅ Health endpoint now returns version, git commit, branch info
+- ✅ Web UI footer displays version and commit hash
+- ✅ Deploy script auto-reads version with `version` command
+
+### v2.6.0 (2025-11-22) - Action Analysis Protocol
+- ✅ Action Analysis Protocol (AAP) for performance notes extraction
+- ✅ TCC middleware layer (coverage filter, antagonist mutual exclusion)
+- ✅ Scene validation layer for atomic reverse verification
+- ✅ Chinese output enforcement in all prompts
+
+### v2.5.0 (2025-11-19) - Gemini Integration
+- ✅ Integrated Google Gemini 2.5 Flash for large script support
+- ✅ Solved Stage 3 token limit issues (JSON truncation)
+
+### v2.4.0 (2025-11-14) - TXT Parser + Web UI
+- ✅ TXT script parser (rule-based + LLM enhancement)
+- ✅ Web UI for upload, preview, and analysis
+- ✅ Mermaid visualization in results page
+
 ### v2.3.0 (2025-11-13) - Export & Reporting
 - ✅ Implemented Markdown report export with Jinja2 templates
 - ✅ Created Mermaid diagram generator for TCC visualization
@@ -117,16 +140,20 @@ Help screenwriters and production teams:
 
 | Version | Date | Features | Status |
 |---------|------|----------|--------|
-| **v2.3.0** | 2025-11-13 | Markdown export + Mermaid visualization | ✅ Current |
+| **v2.7.0** | 2025-11-24 | Gemini 3 Pro + Version tracking | ✅ Current |
+| **v2.6.0** | 2025-11-22 | Action Analysis Protocol (AAP) | ✅ Stable |
+| **v2.5.0** | 2025-11-19 | Gemini integration | ✅ Stable |
+| **v2.4.0** | 2025-11-14 | TXT Parser + Web UI | ✅ Stable |
+| **v2.3.0** | 2025-11-13 | Markdown export + Mermaid visualization | ✅ Stable |
 | **v2.2.0** | 2025-11-13 | LangSmith observability + A/B testing | ✅ Stable |
 | **v2.1.0** | 2025-11-13 | TCC auto-merge + 100% pipeline success | ✅ Stable |
 | **v2.0.0** | 2025-11-13 | Three-stage pipeline complete | ✅ Stable |
 | **v1.0.0** | 2025-11-12 | Initial prompt engineering | ✅ Stable |
 
 ## Current Version
-**Version**: v2.3.0
-**Last Updated**: 2025-11-13
-**Latest Commit**: 016cb44 (feat: add Markdown report export with Mermaid visualization)
+**Version**: v2.7.0
+**Last Updated**: 2025-11-24
+**Latest Commit**: f5ec6dc (fix: handle Gemini 3 Pro multi-part response format)
 **Completion**: 100% (Production Ready with Full Delivery Capability)
 
 ## Usage

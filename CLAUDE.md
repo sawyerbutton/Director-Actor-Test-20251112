@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.7.0 (2025-11-22)
-**Last Updated**: 2025-11-22
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini 3 Pro)
+**Current Version**: 2.7.0 (2025-11-24)
+**Last Updated**: 2025-11-24
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini 3 Pro + Version Tracking)
 
 ---
 
@@ -32,7 +32,7 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 ---
 
-## Current Status (2025-11-22)
+## Current Status (2025-11-24)
 
 ### ✅ What's Working (100% Complete)
 - **Unit Tests**: 44/44 passing (100% pass rate)
@@ -55,10 +55,11 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 TCC Middleware Layer** (v2.6.0): ✅ Coverage filter + antagonist mutual exclusion
 - **🆕 Scene Validation Layer** (v2.6.0): ✅ Atomic reverse verification
 - **🆕 Chinese Output Enforcement** (v2.6.0): ✅ All prompts enforce Chinese output
+- **🆕 Version Tracking** (v2.7.0): ✅ Centralized version info, health endpoint, UI footer display
 
-### 🎉 Recent Fixes (2025-11-22)
+### 🎉 Recent Fixes (2025-11-24)
 
-#### Session 11: Gemini 3 Pro Upgrade (v2.7.0)
+#### Session 11: Gemini 3 Pro + Version Tracking (v2.7.0)
 1. **Gemini 3 Pro Integration** (✅ NEW - Session 11)
    - **Upgrade**: From Gemini 2.5 Flash to Gemini 3 Pro Preview
    - **Model ID**: `gemini-3-pro-preview`
@@ -67,6 +68,19 @@ This file provides quick navigation to all project documentation for AI-assisted
    - **Fallback**: Uses `GOOGLE_API_KEY` if Gemini 3 key not set
    - **Location**: `src/pipeline.py:290-310`, `scripts/test_gemini_api.py`
    - **Reference**: https://ai.google.dev/gemini-api/docs/gemini-3
+
+2. **Gemini Multi-Part Response Fix** (✅ FIXED - Session 11)
+   - **Problem**: `the JSON object must be str, bytes or bytearray, not list`
+   - **Cause**: Gemini 3 Pro returns `response.content` as list: `[{'type': 'text', 'text': '...'}]`
+   - **Solution**: Updated `_parse_json_response()` to handle list-type responses
+   - **Location**: `src/parser/llm_enhancer.py:411-428`
+
+3. **Version Tracking System** (✅ NEW - Session 11)
+   - **New File**: `src/version.py` - Centralized version info
+   - **Health Endpoint**: Returns version, git commit, branch info
+   - **Web UI**: Footer displays `v2.7.0 [commit]`
+   - **Deploy Script**: New `version` command
+   - **Reference**: [`ref/version-tracking.md`](ref/version-tracking.md)
 
 #### Session 10: Discoverer Optimization - Action Analysis Protocol
 1. **Action Analysis Protocol (AAP)** (✅ NEW - Session 10)
@@ -337,10 +351,28 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
 **Key sections**:
 - Token Limit Comparison - Why Gemini solves Stage 3 issues
 - Quick Start - 5 steps to get Gemini working
-- Troubleshooting - Common errors and solutions
+- Troubleshooting - Common errors and solutions (including v2.7.0 multi-part response fix)
 - Best Practices - When to use Gemini vs DeepSeek
 
-### 8. TXT Script Parser Guide
+### 8. Version Tracking Guide
+**File**: [`ref/version-tracking.md`](ref/version-tracking.md)
+
+**Contents**:
+- Centralized version file (`src/version.py`)
+- Health endpoint version info
+- Web UI footer display
+- Deploy script version command
+- Docker image tagging
+- Version update workflow
+
+**When to read**: Understanding deployed version, debugging deployment issues, releasing new versions
+
+**Key sections**:
+- Version Information Sources - 4 ways to check version
+- Version Update Workflow - Steps for releasing
+- Troubleshooting - Version mismatch fixes
+
+### 9. TXT Script Parser Guide
 **File**: [`ref/txt-parser-guide.md`](ref/txt-parser-guide.md)
 
 **Contents**:
@@ -1074,12 +1106,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.7.0 (Session 11: Gemini 3 Pro Upgrade)
+**Project Version**: 2.7.0 (Session 11: Gemini 3 Pro + Version Tracking)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 2.0 (Added Session 11 Gemini 3 Pro upgrade)
-**Last Updated**: 2025-11-22
-**Latest Commit**: TBD (feat: upgrade to Gemini 3 Pro with dedicated API key support)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini 3 Pro + AAP - Production Ready)
+**Documentation Version**: 2.1 (Added Version Tracking guide, updated Gemini troubleshooting)
+**Last Updated**: 2025-11-24
+**Latest Commit**: f5ec6dc (fix: handle Gemini 3 Pro multi-part response format)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini 3 Pro + AAP + Version Tracking - Production Ready)
 
 ---
 

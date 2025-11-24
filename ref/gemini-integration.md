@@ -385,6 +385,37 @@ docker-compose up -d
 - Check logs: `docker-compose logs web | grep "provider"`
 - UI should show "Gemini 3 Pro (64K output)" selected
 
+### Issue 5: Multi-Part Response Format Error (v2.7.0 Fix) 🆕
+
+**Error**: `the JSON object must be str, bytes or bytearray, not list`
+
+**Symptom**: TXT parsing with LLM enhancement fails on scene extraction
+
+**Cause**: Gemini 3 Pro returns `response.content` as a **list** instead of string:
+```python
+# Gemini 3 Pro response format
+[{'type': 'text', 'text': '{"scene_mission": "..."}', 'extras': {...}}]
+```
+
+**Solution** (Fixed in v2.7.0):
+- `src/parser/llm_enhancer.py` now handles list-type responses
+- Extracts text from `part['text']` for each part in the list
+
+**Verify fix applied**:
+```bash
+curl http://localhost:8014/health | grep version
+# Should show: "version": "2.7.0"
+```
+
+**If issue persists**:
+```bash
+# Ensure latest code
+git pull origin main
+
+# Rebuild and deploy
+./scripts/deploy.sh deploy
+```
+
 ---
 
 ## Performance Characteristics
