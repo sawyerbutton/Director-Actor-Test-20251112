@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from prompts.schemas import Script
 from src.pipeline import run_pipeline
 from src.exporters import MarkdownExporter
+from src.version import __version__, get_version_info, get_git_info
 import logging
 
 # Setup logging
@@ -35,11 +36,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="剧本叙事结构分析系统",
     description="Script Narrative Structure Analysis System - Web Interface",
-    version="2.4.0"
+    version=__version__
 )
 
 # Static file version for cache busting (update this when JS/CSS changes)
-STATIC_VERSION = "2.4.0"
+STATIC_VERSION = __version__
 
 # Get project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -110,10 +111,16 @@ class AnalysisResponse(BaseModel):
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Docker and load balancers."""
+    version_info = get_version_info()
+    git_info = get_git_info()
     return {
         "status": "healthy",
         "service": "screenplay-analysis",
-        "version": "2.4.0",
+        "version": version_info["version"],
+        "version_name": version_info["name"],
+        "git_commit": git_info["commit_short"],
+        "git_branch": git_info["branch"],
+        "build_date": version_info["build_date"],
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -123,11 +130,13 @@ async def home(request: Request):
     """Render home page with upload form."""
     # Get configured LLM provider from environment
     default_provider = os.getenv("LLM_PROVIDER", "deepseek")
+    version_info = get_version_info()
 
     return templates.TemplateResponse("index.html", {
         "request": request,
         "version": STATIC_VERSION,
-        "default_provider": default_provider
+        "default_provider": default_provider,
+        "version_info": version_info
     })
 
 
@@ -308,7 +317,8 @@ async def parse_preview_page(request: Request, job_id: str):
         "request": request,
         "job_id": job_id,
         "filename": job["filename"],
-        "version": STATIC_VERSION
+        "version": STATIC_VERSION,
+        "version_info": get_version_info()
     })
 
 
@@ -371,7 +381,8 @@ async def analysis_page(request: Request, job_id: str):
         "request": request,
         "job_id": job_id,
         "filename": job["filename"],
-        "version": STATIC_VERSION
+        "version": STATIC_VERSION,
+        "version_info": get_version_info()
     })
 
 
@@ -390,7 +401,8 @@ async def results_page(request: Request, job_id: str):
         "request": request,
         "job_id": job_id,
         "result": job.get("result"),
-        "version": STATIC_VERSION
+        "version": STATIC_VERSION,
+        "version_info": get_version_info()
     })
 
 

@@ -16,9 +16,26 @@ NC='\033[0m' # No Color
 
 # Configuration
 IMAGE_NAME="screenplay-analysis"
-IMAGE_TAG="latest"
 CONTAINER_NAME="screenplay-web"
 PORT=8014
+
+# Get version from src/version.py
+get_version() {
+    if [ -f "src/version.py" ]; then
+        grep "^__version__" src/version.py | head -1 | cut -d'"' -f2
+    else
+        echo "2.6.0"
+    fi
+}
+
+# Get git commit hash
+get_git_commit() {
+    git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+}
+
+APP_VERSION=$(get_version)
+GIT_COMMIT=$(get_git_commit)
+IMAGE_TAG="${APP_VERSION}"
 
 # Helper functions
 log_info() {
@@ -62,9 +79,14 @@ check_prerequisites() {
 
 # Build Docker image
 build_image() {
-    log_info "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
-    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-    log_success "Docker image built successfully"
+    log_info "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG} (commit: ${GIT_COMMIT})..."
+    docker build \
+        --build-arg APP_VERSION=${APP_VERSION} \
+        --build-arg GIT_COMMIT=${GIT_COMMIT} \
+        -t ${IMAGE_NAME}:${IMAGE_TAG} \
+        -t ${IMAGE_NAME}:latest \
+        .
+    log_success "Docker image built: ${IMAGE_NAME}:${IMAGE_TAG}"
 }
 
 # Stop and remove existing container
@@ -133,6 +155,7 @@ check_status() {
 deploy() {
     echo "============================================"
     echo "  Script Analysis System - Deployment"
+    echo "  Version: ${APP_VERSION} (${GIT_COMMIT})"
     echo "============================================"
     echo ""
 
@@ -203,8 +226,18 @@ case "${1:-deploy}" in
     status)
         check_status
         ;;
+    version)
+        echo "============================================"
+        echo "  Version Information"
+        echo "============================================"
+        echo "  App Version:  ${APP_VERSION}"
+        echo "  Git Commit:   ${GIT_COMMIT}"
+        echo "  Git Branch:   $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+        echo "  Image Tag:    ${IMAGE_NAME}:${IMAGE_TAG}"
+        echo "============================================"
+        ;;
     *)
-        echo "Usage: $0 {deploy|build|start|stop|restart|logs|status}"
+        echo "Usage: $0 {deploy|build|start|stop|restart|logs|status|version}"
         echo ""
         echo "Commands:"
         echo "  deploy   - Full deployment (build + start)"
@@ -214,6 +247,7 @@ case "${1:-deploy}" in
         echo "  restart  - Restart container"
         echo "  logs     - View container logs"
         echo "  status   - Check container status"
+        echo "  version  - Show version information"
         exit 1
         ;;
 esac

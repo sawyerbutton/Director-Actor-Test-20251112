@@ -50,7 +50,16 @@
     <footer class="bg-light text-center py-4 mt-5">
         <div class="container">
             <p class="text-muted mb-0">
-                剧本叙事结构分析系统 v2.3.0 |
+                剧本叙事结构分析系统
+                {% if version_info %}
+                    v{{ version_info.version }}
+                    <span class="badge bg-secondary" title="Git Commit: {{ version_info.git.commit_short }} ({{ version_info.git.branch }})">
+                        {{ version_info.git.commit_short }}
+                    </span>
+                {% else %}
+                    v2.6.0
+                {% endif %}
+                |
                 <a href="https://github.com/yourusername/project" target="_blank">文档</a> |
                 基于 LangChain + LangGraph
             </p>
