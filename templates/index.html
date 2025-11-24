@@ -114,13 +114,15 @@
                         <label for="geminiModel" class="form-label">选择 Gemini 模型版本</label>
                         <select class="form-select" id="geminiModel">
                             <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (快速响应，推荐)</option>
-                            <option value="gemini-2.5-pro">Gemini 2.5 Pro (高级推理，较慢)</option>
+                            <option value="gemini-2.5-pro">Gemini 2.5 Pro (高级推理)</option>
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                            <option value="gemini-exp-1206">Gemini Exp 1206 (实验版)</option>
                         </select>
                         <div class="form-text">
                             <i class="bi bi-info-circle"></i>
                             <span id="geminiModelHint">
-                                Gemini 2.5 Flash: 响应快，适合 TXT 解析和一般分析<br>
-                                Gemini 2.5 Pro: 推理更强，适合复杂脚本深度分析
+                                Gemini 2.5 Flash: 快速响应，适合一般分析<br>
+                                Gemini 2.5 Pro: 推理更强，适合复杂分析
                             </span>
                         </div>
                     </div>
