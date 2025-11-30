@@ -8,7 +8,8 @@ langchain>=0.1.0
 langchain-openai>=0.0.5  # For DeepSeek & OpenAI (via OpenAI-compatible API)
 langchain-core>=0.1.0
 langgraph>=0.0.40
-langchain-google-genai>=2.0.0  # For Google Gemini 3
+langchain-google-genai>=3.2.0  # For Google Gemini 2.5 with thinking_budget support
+google-genai>=1.52.0  # For Gemini 3 Pro with thinking_level support (via ChatGemini3)
 
 # Optional: Anthropic support (only needed if using Claude)
 # langchain-anthropic>=0.1.0

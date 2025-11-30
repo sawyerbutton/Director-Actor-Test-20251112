@@ -18,6 +18,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tracers.context import tracing_v2_enabled
 from langgraph.graph import StateGraph, END, START
 from langchain_google_genai import ChatGoogleGenerativeAI
+from src.gemini3_llm import ChatGemini3
 from prompts.schemas import (
     Script, DiscovererOutput, AuditorOutput, ModifierOutput,
     calculate_setup_payoff_density, validate_tcc_independence,
@@ -289,11 +290,12 @@ def create_llm(
 
     elif provider == "gemini":
         # Gemini models reference: https://ai.google.dev/gemini-api/docs/models
+        # Thinking mode reference: https://ai.google.dev/gemini-api/docs/thinking
         # Available models:
-        #   - gemini-2.5-flash: Fast, recommended for most tasks
-        #   - gemini-2.5-pro: More capable, slower
-        #   - gemini-2.0-flash: Previous generation flash
-        #   - gemini-3-pro-preview: Gemini 3 Pro preview version
+        #   - gemini-2.5-flash: Fast, recommended for most tasks (thinking_budget: 0-24576)
+        #   - gemini-2.5-pro: More capable, slower (thinking_budget: 128-32768, cannot disable)
+        #   - gemini-2.0-flash: Previous generation flash (no thinking)
+        #   - gemini-3-pro-preview: Gemini 3 Pro preview version (thinking_level: low/high)
         model = model or "gemini-2.5-flash"
 
         # Use dedicated Gemini 3 API key if available for Gemini 3 models
@@ -307,15 +309,47 @@ def create_llm(
             if not api_key:
                 raise ValueError("GOOGLE_API_KEY environment variable not set")
 
-        logger.info(f"Creating Gemini LLM: {model} (max_tokens: {max_tokens})")
-
-        # Set timeout based on model type:
-        # - Pro/Gemini 3 models: slower, needs longer timeout
-        # - Flash models: fast, can use shorter timeout
-        if "pro" in model or "gemini-3" in model:
-            timeout = 120  # 2 minutes for Pro/Gemini 3 models
+        # Configure thinking mode based on model type:
+        # Reference: https://ai.google.dev/gemini-api/docs/thinking
+        #
+        # NOTE: As of 2025-11-30, LangChain's thinking_level parameter is NOT working
+        # due to Google SDK compatibility issues (see GitHub issue #1366).
+        # We use thinking_budget as a workaround for all models.
+        #
+        # Supported configurations:
+        # - Gemini 2.5 Flash: thinking_budget 0-24576 (0 = disabled)
+        # - Gemini 2.5 Pro: thinking_budget 128-32768 (cannot disable)
+        # - Gemini 3 Pro: Use custom ChatGemini3 wrapper with thinking_level="LOW"
+        # - Gemini 2.0: No thinking support
+        thinking_config = {}
+        if "gemini-3" in model:
+            # Gemini 3 Pro: Use custom ChatGemini3 wrapper with google-genai SDK
+            # This bypasses the LangChain issue #1366 and enables thinking_level="LOW"
+            # Performance: ~4s with LOW vs ~100s with HIGH (96% improvement!)
+            logger.info(f"Creating Gemini 3 LLM: {model} (thinking_level=LOW, using ChatGemini3)")
+            return ChatGemini3(
+                api_key=api_key,
+                model=model,
+                thinking_level="LOW",
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            )
+        elif "2.5-flash" in model or "2.5-flash-preview" in model:
+            # Gemini 2.5 Flash: Can disable thinking completely with budget=0
+            # This gives the fastest response time (~1-2s per request)
+            thinking_config["thinking_budget"] = 0
+            timeout = 60
+            logger.info(f"Creating Gemini 2.5 Flash LLM: {model} (thinking_budget=0, timeout={timeout}s)")
+        elif "2.5-pro" in model:
+            # Gemini 2.5 Pro: Cannot disable thinking, minimum 128 tokens
+            # Use minimum budget for faster response while maintaining quality
+            thinking_config["thinking_budget"] = 128
+            timeout = 120
+            logger.info(f"Creating Gemini 2.5 Pro LLM: {model} (thinking_budget=128, timeout={timeout}s)")
         else:
-            timeout = 60   # 1 minute for Flash models
+            # Gemini 2.0 and other models: No thinking support
+            timeout = 60
+            logger.info(f"Creating Gemini LLM: {model} (no thinking config, timeout={timeout}s)")
 
         return ChatGoogleGenerativeAI(
             model=model,
@@ -323,6 +357,7 @@ def create_llm(
             temperature=temperature,
             max_output_tokens=max_tokens,
             timeout=timeout,
+            **thinking_config,
         )
 
     else:

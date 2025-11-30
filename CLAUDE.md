@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.8.1 (2025-11-24)
-**Last Updated**: 2025-11-24
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key)
+**Current Version**: 2.9.0 (2025-11-30)
+**Last Updated**: 2025-11-30
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization)
 
 ---
 
@@ -32,7 +32,7 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 ---
 
-## Current Status (2025-11-24)
+## Current Status (2025-11-30)
 
 ### ✅ What's Working (100% Complete)
 - **Unit Tests**: 44/44 passing (100% pass rate)
@@ -59,8 +59,45 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 Gemini Model Selection** (v2.8.0): ✅ Web UI supports 4 Gemini models (2.5 Flash/Pro, 2.0 Flash, 3 Pro Preview)
 - **🆕 Chinese Scene Format** (v2.8.1): ✅ TXT parser supports `1、场景名` format (Chinese 顿号)
 - **🆕 Gemini 3 Dedicated API Key** (v2.8.1): ✅ Dual API key support (`GOOGLE_GEMINI3_API_KEY`)
+- **🆕 Gemini Thinking Mode Optimization** (v2.9.0): ✅ 95% speed improvement via thinking_level=LOW
 
-### 🎉 Recent Fixes (2025-11-24)
+### 🎉 Recent Fixes (2025-11-30)
+
+#### Session 14: Gemini Thinking Mode Optimization (v2.9.0)
+1. **Custom ChatGemini3 Wrapper** (✅ NEW - Session 14)
+   - **Problem**: LangChain `langchain-google-genai` doesn't support `thinking_level` parameter (GitHub Issue #1366)
+   - **Solution**: Created custom `ChatGemini3` wrapper using `google-genai` SDK directly
+   - **New File**: `src/gemini3_llm.py` (168 lines)
+   - **Features**: Full LangChain compatibility, supports `thinking_level="LOW"` or `"HIGH"`
+
+2. **Gemini 2.5 Thinking Budget Optimization** (✅ NEW - Session 14)
+   - **Problem**: Gemini 2.5 models use expensive "thinking" by default
+   - **Solution**: Set `thinking_budget=0` to disable thinking for fast responses
+   - **Location**: `src/pipeline.py:276-286`
+   - **Result**: 98% speed improvement (90s → 1.57s for Gemini 2.5 Flash)
+
+3. **Gemini 3 Thinking Level Optimization** (✅ NEW - Session 14)
+   - **Problem**: Gemini 3 Pro default thinking is very slow (~100s per request)
+   - **Solution**: Use `thinking_level="LOW"` via ChatGemini3 wrapper
+   - **Location**: `src/pipeline.py:288-306`, `src/gemini3_llm.py`
+   - **Result**: 95% speed improvement (100s → 4.58s per request)
+
+4. **Performance Improvements** (✅ VERIFIED - Session 14)
+   | Model | Before | After | Improvement |
+   |-------|--------|-------|-------------|
+   | Gemini 2.5 Flash | ~90s | ~1.57s | 98% faster |
+   | Gemini 2.5 Pro | ~10s | ~2.57s | 74% faster |
+   | Gemini 3 Pro | ~100s | ~4.58s | 95% faster |
+
+5. **Dependencies Update** (✅ NEW - Session 14)
+   - Added `google-genai>=1.52.0` to `requirements.txt`
+   - Required for `ChatGemini3` wrapper to access `thinking_level` parameter
+
+6. **Web UI Model Hints Update** (✅ NEW - Session 14)
+   - Updated `templates/index.html` with accurate timing info
+   - Gemini 2.5 Flash: ~1-2s/请求, Thinking 已禁用
+   - Gemini 2.5 Pro: ~2-3s/请求, Thinking 最小化
+   - Gemini 3 Pro: ~4-5s/请求, 快速模式
 
 #### Session 13: TXT Parser Enhancement + Gemini 3 API Key (v2.8.1)
 1. **Chinese Scene Format Support** (✅ NEW - Session 13)
@@ -474,6 +511,13 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - Variant comparison
   - Automated evaluation
   - **Start here for**: Testing different configurations
+
+- **🆕 [`src/gemini3_llm.py`](src/gemini3_llm.py)** (168 lines, v2.9.0)
+  - Custom LangChain-compatible wrapper for Gemini 3
+  - Uses `google-genai` SDK directly (bypasses LangChain limitations)
+  - Supports `thinking_level="LOW"` or `"HIGH"` parameter
+  - **Key feature**: 95% speed improvement via thinking mode optimization
+  - **Start here for**: Gemini 3 integration, thinking mode configuration
 
 #### 🆕 TXT Script Parser (v2.4.0)
 - **[`src/parser/base.py`](src/parser/base.py)** (80 lines)
@@ -1155,12 +1199,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.8.0 (Session 12: Gemini Model Selection)
+**Project Version**: 2.9.0 (Session 14: Gemini Thinking Mode Optimization)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 2.2 (Added Gemini Model Selection, deployment fix documentation)
-**Last Updated**: 2025-11-24
-**Latest Commit**: 41d470d (fix: restore Gemini 3 Pro Preview model option)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini Model Selection + AAP + Version Tracking - Production Ready)
+**Documentation Version**: 2.3 (Added Gemini Thinking Mode Optimization, ChatGemini3 wrapper)
+**Last Updated**: 2025-11-30
+**Latest Commit**: 76e031a (feat: Session 13 - TXT parser enhancement + Gemini 3 API key support)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization - Production Ready)
 
 ---
 

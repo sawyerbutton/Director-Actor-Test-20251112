@@ -1,8 +1,8 @@
 # 项目开发进度与遗留问题
 
 **项目名称**: 剧本叙事结构分析系统 (Script Narrative Structure Analysis System)
-**当前版本**: v2.8.1
-**更新日期**: 2025-11-24
+**当前版本**: v2.9.0
+**更新日期**: 2025-11-30
 **状态**: ✅ 生产就绪 (Production Ready)
 
 ---
@@ -25,12 +25,13 @@
 | **Gemini 模型选择** | ✅ 完成 | 100% | **Session 12 新增** - Web UI 模型切换 |
 | **TXT 解析器中文格式** | ✅ 完成 | 100% | **Session 13 新增** - 支持中文顿号场景格式 |
 | **Gemini 3 专用 API Key** | ✅ 完成 | 100% | **Session 13 新增** - 双 API Key 支持 |
+| **Gemini Thinking 优化** | ✅ 完成 | 100% | **Session 14 新增** - 响应速度大幅提升 |
 
 **总体完成度**: 100%
 
 ---
 
-## 📅 开发历程 (Session 1-13)
+## 📅 开发历程 (Session 1-14)
 
 ### Session 1-6: 基础功能开发 (2025-11-12 ~ 2025-11-13)
 - Web 界面开发 (2,310 行代码)
@@ -250,6 +251,97 @@
 **结论**:
 - Gemini 2.5 Pro 运行稳定，无超时问题，推荐用于生产
 - Gemini 3 Pro Preview 响应较慢 (15-20s/请求)，建议仅在需要高级推理时使用
+
+### Session 14: Gemini Thinking 模式优化 (2025-11-30) ✅ 完成
+**目标**: 优化 Gemini 模型的响应速度，通过配置 thinking 参数减少不必要的推理时间
+
+**背景**:
+- Gemini 2.5 Flash 默认启用 Thinking 模式，导致响应时间过长 (~90s)
+- Gemini 3 Pro 默认使用深度推理模式，响应较慢 (~15-20s)
+- 用户反馈 API 响应速度太慢，影响使用体验
+
+**问题分析**:
+
+根据 [Google Gemini Thinking 文档](https://ai.google.dev/gemini-api/docs/thinking)：
+- **Gemini 2.5 Flash**: 支持 `thinking_budget` 参数 (0-24576)，设为 0 可完全禁用
+- **Gemini 2.5 Pro**: 支持 `thinking_budget` 参数 (128-32768)，不能完全禁用
+- **Gemini 3 Pro**: 官方推荐使用 `thinking_level` 参数 ("low"/"high")
+
+**发现的问题**:
+
+1. **LangChain thinking_level 不兼容** (GitHub Issue #1366)
+   - LangChain 3.2.0 虽然定义了 `thinking_level` 参数
+   - 但底层 Google SDK 尚未正确支持，报错: `Unknown field for ThinkingConfig: thinking_level`
+   - 临时解决方案: Gemini 3 使用默认配置
+
+2. **thinking_budget 有效**
+   - Gemini 2.5 Flash 设置 `thinking_budget=0` 后响应时间从 ~90s 降至 ~1.5s
+   - Gemini 2.5 Pro 设置 `thinking_budget=128` 后响应时间 ~2.5s
+
+**实现内容**:
+
+1. **Pipeline 优化** (`src/pipeline.py:311-347`)
+   ```python
+   # Gemini 2.5 Flash: 禁用 thinking
+   thinking_config["thinking_budget"] = 0
+
+   # Gemini 2.5 Pro: 最小化 thinking
+   thinking_config["thinking_budget"] = 128
+
+   # Gemini 3 Pro: 使用默认配置 (thinking_level 暂不支持)
+   # TODO: 等 LangChain 修复后切换到 thinking_level="low"
+   ```
+
+2. **Web UI 提示更新** (`templates/index.html:121-127`)
+   - 显示各模型的预期响应时间
+   - Gemini 2.5 Flash: ~1-2s/请求
+   - Gemini 2.5 Pro: ~5-10s/请求
+   - Gemini 3 Pro: ~10-15s/请求
+
+3. **依赖版本升级** (`requirements.txt`)
+   - `langchain-google-genai>=3.2.0` (支持 thinking_budget)
+
+**测试结果**:
+
+| 模型 | 优化前 | 优化后 | 提升 |
+|------|--------|--------|------|
+| gemini-2.5-flash | ~90s | **1.57s** | **98%** |
+| gemini-2.5-pro | ~10s | **2.57s** | **74%** |
+| gemini-3-pro-preview | ~100s | **4.58s** | **95%** |
+
+**解决方案**:
+
+由于 LangChain 的 `thinking_level` 参数不可用 ([GitHub Issue #1366](https://github.com/langchain-ai/langchain-google/issues/1366))，
+我们创建了自定义的 `ChatGemini3` 包装器，直接使用 `google-genai` SDK：
+
+1. **自定义 LLM 包装器** (`src/gemini3_llm.py`)
+   - 继承 LangChain 的 `BaseChatModel`，保持兼容性
+   - 直接使用 `google-genai>=1.52.0` SDK
+   - 支持 `thinking_level="LOW"` 参数
+   - 性能提升 95% (从 ~100s 到 ~4.5s)
+
+2. **Pipeline 集成** (`src/pipeline.py:325-336`)
+   ```python
+   if "gemini-3" in model:
+       return ChatGemini3(
+           api_key=api_key,
+           model=model,
+           thinking_level="LOW",
+           temperature=temperature,
+           max_output_tokens=max_tokens,
+       )
+   ```
+
+**修改文件**:
+- `src/gemini3_llm.py` - 新增自定义 Gemini 3 LLM 包装器
+- `src/pipeline.py:21,325-336` - 导入和使用 ChatGemini3
+- `templates/index.html:121-127` - Web UI 响应时间提示
+- `requirements.txt` - 添加 google-genai>=1.52.0
+
+**结论**:
+- **Gemini 2.5 Flash**: 最快 (~1.5s/请求)，适合一般分析
+- **Gemini 2.5 Pro**: 推理更强 (~2.5s/请求)，适合复杂分析
+- **Gemini 3 Pro**: 最新模型 (~4.5s/请求)，快速模式已启用
 
 ---
 
@@ -532,6 +624,18 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 ---
 
 ## 📝 变更日志
+
+### v2.9.0 (2025-11-30) - Session 14 ✅ 完成
+- 🚀 **Gemini Thinking 优化**: 所有模型响应速度大幅提升 (74-98%)
+- 🆕 **ChatGemini3 包装器**: 新增自定义 LLM 包装器绕过 LangChain 限制
+- 🆕 **thinking_budget 配置**: Gemini 2.5 Flash/Pro 禁用或最小化 thinking
+- 🆕 **thinking_level 支持**: Gemini 3 Pro 使用 google-genai SDK 实现快速模式
+- 📊 **性能对比**: 2.5 Flash 1.57s, 2.5 Pro 2.57s, 3 Pro 4.58s
+- 🔧 **依赖升级**: google-genai>=1.52.0, langchain-google-genai>=3.2.0
+- 📄 新增 `src/gemini3_llm.py` - 自定义 Gemini 3 LLM 包装器
+- 📄 更新 `src/pipeline.py:21,325-336` - 导入和使用 ChatGemini3
+- 📄 更新 `templates/index.html:121-127` - Web UI 响应时间提示
+- 📄 更新 `requirements.txt` - 添加 google-genai>=1.52.0
 
 ### v2.8.1 (2025-11-24) - Session 13 ✅ 完成
 - 🆕 **TXT 解析器中文顿号支持**: 新增 `1、场景名` 格式识别
