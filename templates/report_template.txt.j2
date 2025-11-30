@@ -1,0 +1,207 @@
+================================================================================
+                        剧本叙事结构分析报告
+================================================================================
+
+基本信息
+--------------------------------------------------------------------------------
+剧本名称: {{ script_name }}
+分析时间: {{ analysis_time }}
+系统版本: v{{ system_version }}
+分析模式: {{ llm_provider }} / {{ model_name }}
+
+================================================================================
+
+执行概况
+--------------------------------------------------------------------------------
+总执行时间:   {{ total_duration }}秒
+LLM调用次数:  {{ total_llm_calls }}次
+重试次数:     {{ total_retries }}次
+成功率:       {{ success_rate }}%
+
+================================================================================
+
+阶段一：戏剧冲突链（TCC）识别
+--------------------------------------------------------------------------------
+
+识别结果: 共识别出 {{ tccs|length }} 个独立的戏剧冲突链
+
+{% for tcc in tccs %}
+--------------------------------------------------------------------------------
+TCC {{ loop.index }}: {{ tcc.tcc_id }}
+--------------------------------------------------------------------------------
+
+超级目标: {{ tcc.super_objective }}
+
+核心冲突类型: {{ tcc.core_conflict_type }}
+置信度: {{ "%.0f"|format(tcc.confidence * 100) }}%
+证据场景: {% if tcc.evidence_scenes %}{{ tcc.evidence_scenes|join(", ") }}{% else %}无{% endif %}
+
+冲突描述:
+{{ tcc.core_conflict_description if tcc.core_conflict_description else "暂无描述" }}
+
+驱动力 (Protagonist):
+{% for force in tcc.protagonist_forces %}  - {{ force }}
+{% endfor %}{% if not tcc.protagonist_forces %}  - 暂无
+{% endif %}
+
+阻抗力 (Antagonist):
+{% for force in tcc.antagonist_forces %}  - {{ force }}
+{% endfor %}{% if not tcc.antagonist_forces %}  - 暂无
+{% endif %}
+
+{% if tcc.setup_payoff_chains %}
+因果链 (Setup-Payoff):
+{% for chain in tcc.setup_payoff_chains %}  - {{ chain.setup_scene }} -> {{ chain.payoff_scene }}: {{ chain.description }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+{% if tcc_warnings %}
+TCC独立性警告:
+{% for warning in tcc_warnings %}  [!] {{ warning }}
+{% endfor %}
+{% endif %}
+
+================================================================================
+
+阶段二：A/B/C线分级
+--------------------------------------------------------------------------------
+
+【A线 - 主线 / Spine】
+--------------------------------------------------------------------------------
+{% if a_line %}
+TCC: {{ a_line.tcc_id }}
+超级目标: {{ a_line.super_objective }}
+
+Spine评分: {{ a_line.spine_score }} / 10
+失败赌注: {{ a_line.stakes if a_line.stakes else "未指定" }}
+篇幅占比: {{ a_line.scene_count if a_line.scene_count else "未统计" }}个场景
+
+评估理由:
+{{ a_line.reasoning if a_line.reasoning else "暂无" }}
+
+驱动力: {{ a_line.driving_force if a_line.driving_force else "未指定" }}
+主要阻抗力: {{ a_line.main_resistance if a_line.main_resistance else "未指定" }}
+
+{% if a_line.dynamic_resistances %}
+动态阻抗力:
+{% for dr in a_line.dynamic_resistances %}  - {{ dr }}
+{% endfor %}
+{% endif %}
+{% else %}
+[警告] 未识别到A线
+{% endif %}
+
+【B线 - 副线 / Heart】
+--------------------------------------------------------------------------------
+{% if b_lines %}
+{% for b_line in b_lines %}
+TCC: {{ b_line.tcc_id }}
+超级目标: {{ b_line.super_objective }}
+
+Heart评分: {{ b_line.heart_score }} / 10
+情感核心: {{ b_line.emotional_core if b_line.emotional_core else "未指定" }}
+影响A线: {{ b_line.impact_on_a_line if b_line.impact_on_a_line else "未指定" }}
+
+评估理由:
+{{ b_line.reasoning if b_line.reasoning else "暂无" }}
+
+{% endfor %}
+{% else %}
+未识别到B线
+{% endif %}
+
+【C线 - 次线 / Flavor】
+--------------------------------------------------------------------------------
+{% if c_lines %}
+{% for c_line in c_lines %}
+TCC: {{ c_line.tcc_id }}
+超级目标: {{ c_line.super_objective }}
+
+Flavor评分: {{ c_line.flavor_score }} / 10
+主题映照: {{ c_line.theme_reflection if c_line.theme_reflection else "未指定" }}
+可剥离性: {{ c_line.removability if c_line.removability else "未指定" }}
+
+评估理由:
+{{ c_line.reasoning if c_line.reasoning else "暂无" }}
+
+{% endfor %}
+{% else %}
+未识别到C线
+{% endif %}
+
+================================================================================
+
+阶段三：结构修正
+--------------------------------------------------------------------------------
+
+修正概况:
+  发现问题: {{ total_issues }}个
+  已修复:   {{ fixed_issues }}个
+  跳过:     {{ skipped_issues }}个
+
+{% if modifications %}
+修正详情:
+--------------------------------------------------------------------------------
+{% for mod in modifications %}
+修正 {{ loop.index }}: {{ mod.issue_id }}
+  场景: {{ mod.scene_id if mod.scene_id else "全局修正" }}
+  字段: {{ mod.field if mod.field else "N/A" }}
+  操作: {{ mod.change_type if mod.change_type else "跳过" }}
+  原因: {{ mod.reason if mod.reason else "无说明" }}
+{% if mod.old_value %}  原值: {{ mod.old_value }}
+{% endif %}{% if mod.new_value %}  新值: {{ mod.new_value }}
+{% endif %}  状态: {% if mod.applied %}[已应用]{% else %}[已跳过]{% endif %}
+
+{% endfor %}
+{% else %}
+无需修正，剧本结构完整
+{% endif %}
+
+================================================================================
+
+关键发现
+--------------------------------------------------------------------------------
+{% if key_findings %}
+{% for finding in key_findings %}
+  {{ loop.index }}. {{ finding }}
+{% endfor %}
+{% else %}
+  1. 分析完成，未发现重大问题
+  2. 剧本结构完整，TCC关系清晰
+{% endif %}
+
+================================================================================
+
+建议
+--------------------------------------------------------------------------------
+{% if recommendations %}
+{% for rec in recommendations %}
+  {{ loop.index }}. {{ rec }}
+{% endfor %}
+{% else %}
+  1. 剧本结构良好，建议维持当前设计
+  2. 可考虑进一步深化B线与A线的交叉影响
+{% endif %}
+
+================================================================================
+
+附录：性能统计
+--------------------------------------------------------------------------------
+
+各阶段耗时:
+
+阶段                耗时(秒)    LLM调用    重试次数
+--------------------------------------------------------------------------------
+{% for stage, metrics in stage_metrics.items() %}
+{{ "%-18s"|format(stage) }}  {{ "%8.2f"|format(metrics.duration) }}    {{ "%7d"|format(metrics.llm_calls) }}    {{ "%8d"|format(metrics.retries) }}
+{% endfor %}
+
+================================================================================
+
+报告生成时间: {{ report_generated_time }}
+系统: 剧本叙事结构分析系统 v{{ system_version }}
+
+================================================================================
+              本报告由 AI 自动生成，建议结合人工审核使用
+================================================================================

@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.9.0 (2025-11-30)
+**Current Version**: 2.10.0 (2025-11-30)
 **Last Updated**: 2025-11-30
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization)
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + TXT export + Full Report Tab + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization)
 
 ---
 
@@ -47,7 +47,8 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **TXT Script Parser** (v2.4.0): ✅ Convert TXT scripts to JSON (Phase 1-3 complete)
 - **LLM Enhancement**: ✅ Semantic extraction with async progress callbacks
 - **Web UI Integration**: ✅ TXT upload, preview, continue-to-analysis workflow
-- **Mermaid Visualization** (v2.4.1): ✅ Interactive TCC relationship diagrams with A/B/C color coding
+- **Mermaid Visualization** (v2.10.0): ✅ Enhanced TCC relationship diagrams with connections, legends, and A/B/C color coding
+- **Full Report Tab** (v2.10.0): ✅ Comprehensive report view with auto-generated findings and recommendations
 - **LangSmith Observability**: ✅ Auto-tracing, performance metrics, cost estimation
 - **A/B Testing Framework**: ✅ Compare providers, prompts, and parameters
 - **Markdown Export** (v2.3.0): ✅ Professional reports + Mermaid visualization
@@ -60,8 +61,50 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 Chinese Scene Format** (v2.8.1): ✅ TXT parser supports `1、场景名` format (Chinese 顿号)
 - **🆕 Gemini 3 Dedicated API Key** (v2.8.1): ✅ Dual API key support (`GOOGLE_GEMINI3_API_KEY`)
 - **🆕 Gemini Thinking Mode Optimization** (v2.9.0): ✅ 95% speed improvement via thinking_level=LOW
+- **🆕 TXT Report Export** (v2.10.0): ✅ Plain text report format with ASCII formatting
 
 ### 🎉 Recent Fixes (2025-11-30)
+
+#### Session 15: TXT Report Export + Full Report Tab + Mermaid Enhancement (v2.10.0)
+1. **TXT Report Export** (✅ NEW - Session 15)
+   - **Feature**: Export analysis results as plain text reports with ASCII formatting
+   - **New Files**:
+     - `src/exporters/txt_exporter.py` (220 lines) - TXTExporter class
+     - `templates/report_template.txt.j2` - Jinja2 TXT template
+   - **CLI**: `python -m src.cli analyze script.json --export report.txt`
+   - **Web UI**: New "TXT" button alongside existing MD/JSON export buttons
+   - **Location**: `src/web/app.py:720-750`, `static/js/results.js:445-470`
+
+2. **Full Report Tab** (✅ NEW - Session 15)
+   - **Feature**: Comprehensive report view in results page with all analysis data
+   - **New Tab**: "完整报告" tab in results.html displaying:
+     - Executive summary with key metrics
+     - All 3 TCCs with super objectives and confidence scores
+     - A/B/C line rankings with evaluation reasoning
+     - All modifications with before/after values
+     - Auto-generated findings and recommendations
+   - **Location**: `templates/results.html:85-95`, `static/js/results.js:displayFullReport()`
+
+3. **Mermaid Relationship Diagram Enhancement** (✅ FIXED - Session 15)
+   - **Problem**: Mermaid diagram only showed isolated TCC nodes without any connections
+   - **Solution**: Implemented three-layer relationship inference:
+     1. **Scene Overlap**: Connect TCCs that share evidence scenes (bi-directional `<-->`)
+     2. **Narrative Hierarchy**: A-line → B-lines (`主线驱动`), B-lines → C-lines (`情节呼应`)
+     3. **Fallback**: Ensure all TCCs have at least one connection
+   - **Added**: Color-coded legend (A线=红, B线=青, C线=绿)
+   - **Location**: `static/js/results.js:displayMermaidDiagram()` (~190 lines rewritten)
+   - **Result**: Diagrams now show meaningful relationships between narrative threads
+
+4. **Helper Functions** (✅ NEW - Session 15)
+   - `truncateText(text, maxLength)` - Safely truncate long text for diagram labels
+   - `escapeHtml(text)` - Prevent XSS in dynamically generated content
+   - **Location**: `static/js/results.js:540-560`
+
+5. **End-to-End Testing** (✅ VERIFIED - Session 15)
+   - **蓝1 第三版.txt**: 15 scenes, 75 LLM calls, 3 TCCs, 152.79s total
+   - Full Report Tab rendering correctly
+   - Mermaid diagram showing TCC relationships with connections
+   - TXT/MD/JSON export all functional
 
 #### Session 14: Gemini Thinking Mode Optimization (v2.9.0)
 1. **Custom ChatGemini3 Wrapper** (✅ NEW - Session 14)
@@ -1199,12 +1242,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.9.0 (Session 14: Gemini Thinking Mode Optimization)
+**Project Version**: 2.10.0 (Session 15: TXT Report Export + Full Report Tab + Mermaid Enhancement)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 2.3 (Added Gemini Thinking Mode Optimization, ChatGemini3 wrapper)
+**Documentation Version**: 2.5 (Added TXT Report Export, Full Report Tab, Mermaid Enhancement)
 **Last Updated**: 2025-11-30
-**Latest Commit**: 76e031a (feat: Session 13 - TXT parser enhancement + Gemini 3 API key support)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + export + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization - Production Ready)
+**Latest Commit**: d4cf885 (docs: update PROJECT_STATUS.md version to 1.4)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + Markdown/TXT export + Full Report Tab + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization - Production Ready)
 
 ---
 

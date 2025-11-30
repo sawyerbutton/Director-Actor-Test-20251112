@@ -16,7 +16,7 @@ from pathlib import Path
 from prompts.schemas import Script, validate_setup_payoff_integrity
 from src.pipeline import run_pipeline
 from src.ab_testing import ABTestRunner, PromptVariant
-from src.exporters import MarkdownExporter
+from src.exporters import MarkdownExporter, TXTExporter
 import logging
 from dotenv import load_dotenv
 
@@ -44,27 +44,27 @@ def load_script(script_path: str) -> Script:
     return Script(**data)
 
 
+def _prepare_export_result(final_state: dict) -> dict:
+    """Prepare result data for exporters."""
+    return {
+        "tccs": final_state["discoverer_output"].tccs if final_state["discoverer_output"] else [],
+        "rankings": final_state["auditor_output"].rankings if final_state["auditor_output"] else None,
+        "modifications": {
+            "modifications": final_state["modifier_output"].modification_log if final_state["modifier_output"] else [],
+            "total_issues": final_state["modifier_output"].validation.total_issues if final_state["modifier_output"] else 0,
+        },
+        "_metrics": final_state.get("_metrics", {}),
+        "script_json": final_state.get("script_json", {}),
+    }
+
+
 def export_markdown(final_state: dict, output_path: str, script_path: str):
     """Export analysis results to Markdown report."""
     try:
         exporter = MarkdownExporter()
-
-        # Prepare result data for exporter
-        result = {
-            "tccs": final_state["discoverer_output"].tccs if final_state["discoverer_output"] else [],
-            "rankings": final_state["auditor_output"].rankings if final_state["auditor_output"] else None,
-            "modifications": {
-                "modifications": final_state["modifier_output"].modification_log if final_state["modifier_output"] else [],
-                "total_issues": final_state["modifier_output"].validation.total_issues if final_state["modifier_output"] else 0,
-            },
-            "_metrics": final_state.get("_metrics", {}),
-            "script_json": final_state.get("script_json", {}),
-        }
-
-        # Extract script name from path
+        result = _prepare_export_result(final_state)
         script_name = Path(script_path).stem
 
-        # Export to Markdown
         output = exporter.export(result, Path(output_path), script_name=script_name)
         logger.info(f"✅ Markdown report exported to: {output}")
         print(f"\n📄 Markdown报告已导出: {output}")
@@ -72,6 +72,22 @@ def export_markdown(final_state: dict, output_path: str, script_path: str):
     except Exception as e:
         logger.error(f"Failed to export Markdown report: {e}")
         print(f"\n⚠️  Markdown导出失败: {e}")
+
+
+def export_txt(final_state: dict, output_path: str, script_path: str):
+    """Export analysis results to TXT report."""
+    try:
+        exporter = TXTExporter()
+        result = _prepare_export_result(final_state)
+        script_name = Path(script_path).stem
+
+        output = exporter.export(result, Path(output_path), script_name=script_name)
+        logger.info(f"✅ TXT report exported to: {output}")
+        print(f"\n📄 TXT报告已导出: {output}")
+
+    except Exception as e:
+        logger.error(f"Failed to export TXT report: {e}")
+        print(f"\n⚠️  TXT导出失败: {e}")
 
 
 def save_results(output_path: str, final_state: dict):
@@ -116,6 +132,10 @@ def cmd_analyze(args):
         # Export to Markdown if requested
         if hasattr(args, 'export') and args.export:
             export_markdown(final_state, args.export, args.script)
+
+        # Export to TXT if requested
+        if hasattr(args, 'export_txt') and args.export_txt:
+            export_txt(final_state, args.export_txt, args.script)
 
         # Print summary
         print("\n" + "=" * 60)
@@ -344,6 +364,7 @@ def main():
     parser_analyze.add_argument('script', help='Path to script JSON file')
     parser_analyze.add_argument('--output', '-o', help='Output file for results (JSON)')
     parser_analyze.add_argument('--export', '-e', help='Export Markdown report to specified path')
+    parser_analyze.add_argument('--export-txt', help='Export TXT report to specified path')
     parser_analyze.add_argument('--provider', '-p',
                                 choices=['deepseek', 'anthropic', 'openai'],
                                 help='LLM provider (default: from .env or deepseek)')

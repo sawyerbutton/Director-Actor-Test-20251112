@@ -9,10 +9,10 @@ import subprocess
 from functools import lru_cache
 
 # Application version - update this when releasing new versions
-__version__ = "2.9.0"
+__version__ = "2.10.0"
 
 # Version name for display
-VERSION_NAME = "Session 14: Gemini Thinking Mode Optimization"
+VERSION_NAME = "Session 15: TXT Report Export + Full Report Tab + Mermaid Enhancement"
 
 # Build info
 BUILD_DATE = "2025-11-30"

@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from prompts.schemas import Script
 from src.pipeline import run_pipeline
-from src.exporters import MarkdownExporter
+from src.exporters import MarkdownExporter, TXTExporter
 from src.version import __version__, get_version_info, get_git_info
 import logging
 
@@ -467,6 +467,32 @@ async def download_report(job_id: str):
     )
 
 
+@app.get("/api/download/report-txt/{job_id}")
+async def download_report_txt(job_id: str):
+    """Download TXT report for a completed job."""
+    if job_id not in active_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job = active_jobs[job_id]
+
+    if job["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Analysis not completed")
+
+    if "txt_path" not in job:
+        raise HTTPException(status_code=404, detail="TXT report not found")
+
+    txt_path = Path(job["txt_path"])
+
+    if not txt_path.exists():
+        raise HTTPException(status_code=404, detail="Report file not found")
+
+    return FileResponse(
+        path=str(txt_path),
+        filename=f"{job['filename']}_report.txt",
+        media_type="text/plain; charset=utf-8"
+    )
+
+
 @app.websocket("/ws/progress/{job_id}")
 async def websocket_progress(websocket: WebSocket, job_id: str):
     """WebSocket endpoint for real-time progress updates."""
@@ -677,31 +703,43 @@ async def run_analysis_job(
             "message": "Stage 3 complete. Generating report..."
         })
 
+        # Prepare export result data
+        export_result = {
+            "tccs": final_state["discoverer_output"].tccs if final_state["discoverer_output"] else [],
+            "rankings": final_state["auditor_output"].rankings if final_state["auditor_output"] else None,
+            "modifications": {
+                "modifications": final_state["modifier_output"].modification_log if final_state["modifier_output"] else [],
+                "total_issues": final_state["modifier_output"].validation.total_issues if final_state["modifier_output"] else 0,
+            },
+            "_metrics": final_state.get("_metrics", {}),
+            "script_json": final_state.get("script_json", {}),
+        }
+        script_name = active_jobs[job_id]["filename"].replace(".json", "").replace(".txt", "")
+
         # Export Markdown if requested
-        markdown_path = None
         if export_markdown:
             try:
-                exporter = MarkdownExporter()
-                result = {
-                    "tccs": final_state["discoverer_output"].tccs if final_state["discoverer_output"] else [],
-                    "rankings": final_state["auditor_output"].rankings if final_state["auditor_output"] else None,
-                    "modifications": {
-                        "modifications": final_state["modifier_output"].modification_log if final_state["modifier_output"] else [],
-                        "total_issues": final_state["modifier_output"].validation.total_issues if final_state["modifier_output"] else 0,
-                    },
-                    "_metrics": final_state.get("_metrics", {}),
-                    "script_json": final_state.get("script_json", {}),
-                }
-
+                md_exporter = MarkdownExporter()
                 markdown_path = UPLOAD_DIR / f"{job_id}_report.md"
-                script_name = active_jobs[job_id]["filename"].replace(".json", "")
-                exporter.export(result, markdown_path, script_name=script_name)
+                md_exporter.export(export_result, markdown_path, script_name=script_name)
 
                 active_jobs[job_id]["markdown_path"] = str(markdown_path)
                 logger.info(f"Markdown report generated: {markdown_path}")
 
             except Exception as e:
                 logger.error(f"Failed to generate Markdown report: {e}")
+
+        # Always generate TXT report as well
+        try:
+            txt_exporter = TXTExporter()
+            txt_path = UPLOAD_DIR / f"{job_id}_report.txt"
+            txt_exporter.export(export_result, txt_path, script_name=script_name)
+
+            active_jobs[job_id]["txt_path"] = str(txt_path)
+            logger.info(f"TXT report generated: {txt_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to generate TXT report: {e}")
 
         # Analysis complete
         active_jobs[job_id]["status"] = "completed"

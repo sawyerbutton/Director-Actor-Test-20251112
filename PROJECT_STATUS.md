@@ -1,7 +1,7 @@
 # 项目开发进度与遗留问题
 
 **项目名称**: 剧本叙事结构分析系统 (Script Narrative Structure Analysis System)
-**当前版本**: v2.9.0
+**当前版本**: v2.10.0
 **更新日期**: 2025-11-30
 **状态**: ✅ 生产就绪 (Production Ready)
 
@@ -18,6 +18,7 @@
 | LangSmith 可观测性 | ✅ 完成 | 100% | 自动追踪、性能指标、成本估算 |
 | A/B 测试框架 | ✅ 完成 | 100% | 多提供商对比、参数测试 |
 | Markdown 导出 | ✅ 完成 | 100% | 专业报告 + Mermaid 图表 |
+| **TXT 报告导出** | ✅ 完成 | 100% | **Session 15 新增** - 纯文本报告格式 |
 | Docker 容器化 | ✅ 完成 | 100% | docker-compose 一键部署 |
 | **Gemini 集成** | ✅ 完成 | 100% | **Session 9 新增** - 解决大脚本问题 |
 | **动作分析协议 (AAP)** | ✅ 完成 | 100% | **Session 10 新增** - Discoverer 优化 |
@@ -26,6 +27,8 @@
 | **TXT 解析器中文格式** | ✅ 完成 | 100% | **Session 13 新增** - 支持中文顿号场景格式 |
 | **Gemini 3 专用 API Key** | ✅ 完成 | 100% | **Session 13 新增** - 双 API Key 支持 |
 | **Gemini Thinking 优化** | ✅ 完成 | 100% | **Session 14 新增** - 响应速度大幅提升 |
+| **完整报告 Tab** | ✅ 完成 | 100% | **Session 15 新增** - 集中展示所有分析内容 |
+| **Mermaid 关系图增强** | ✅ 完成 | 100% | **Session 15 新增** - TCC关系连接+图例 |
 
 **总体完成度**: 100%
 
@@ -625,6 +628,43 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ## 📝 变更日志
 
+### v2.10.0 (2025-11-30) - Session 15 ✅ 完成
+#### TXT 报告导出
+- 🆕 **TXT 报告导出**: 新增纯文本格式报告导出功能
+- 🆕 **TXTExporter 类**: 新增 `src/exporters/txt_exporter.py` (210+ 行代码)
+- 🆕 **TXT 报告模板**: 新增 `templates/report_template.txt.j2` (Jinja2 模板)
+- 🆕 **CLI --export-txt 参数**: 支持 `--export-txt report.txt` 导出 TXT 报告
+- 🆕 **Web UI TXT 下载按钮**: 结果页面新增 "下载 TXT 报告" 按钮
+- 🆕 **TXT 下载接口**: `/api/download/report-txt/{job_id}` 端点
+
+#### 完整报告 Tab
+- 🆕 **完整报告 Tab**: 结果页面新增"完整报告"标签页，集中展示所有分析内容
+- 🆕 **HTML 报告渲染**: `displayFullReport()` 函数生成完整的 HTML 报告视图
+- 🆕 **自动生成关键发现**: `generateKeyFindings()` 基于分析数据自动生成摘要
+- 🆕 **自动生成建议**: `generateRecommendations()` 智能生成改进建议
+
+#### Mermaid 关系图增强
+- 🔧 **TCC 关系连接**: 修复关系图只显示孤立节点的问题，添加三层关系推断：
+  1. 基于证据场景重叠建立"场景交织"连接
+  2. 基于叙事层级建立"主线驱动"和"情节呼应"连接
+  3. 兜底机制：确保所有TCC都有关联线
+- 🔧 **丰富节点信息**: 节点现在显示线级标签、超级目标摘要、置信度
+- 🆕 **图例说明**: 添加清晰的颜色和连接类型图例
+- 🎨 **样式优化**: A线红色、B线青色、C线绿色，区分度更高
+
+#### 文件变更
+- 📄 更新 `src/exporters/__init__.py` - 导出 TXTExporter
+- 📄 更新 `src/cli.py` - 添加 --export-txt 参数和 export_txt 函数
+- 📄 更新 `src/web/app.py` - 添加 TXT 生成和下载接口
+- 📄 更新 `templates/results.html` - 添加 TXT 下载按钮、完整报告 Tab
+- 📄 更新 `static/js/results.js` - 添加 displayFullReport、增强 displayMermaidDiagram (+200 行)
+
+**TXT 报告特点**:
+- 纯文本格式，无 Markdown 标记
+- 使用 ASCII 边框和分隔线，适合终端查看
+- 包含完整的三阶段分析结果
+- UTF-8 编码，支持中文
+
 ### v2.9.0 (2025-11-30) - Session 14 ✅ 完成
 - 🚀 **Gemini Thinking 优化**: 所有模型响应速度大幅提升 (74-98%)
 - 🆕 **ChatGemini3 包装器**: 新增自定义 LLM 包装器绕过 LangChain 限制
@@ -710,6 +750,6 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ---
 
-**文档版本**: 1.4
+**文档版本**: 1.5
 **最后更新**: 2025-11-30
 **维护者**: AI Assistant (Claude Code)

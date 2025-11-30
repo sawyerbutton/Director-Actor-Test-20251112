@@ -1,8 +1,10 @@
 """
-Markdown report exporter for screenplay analysis results.
+TXT report exporter for screenplay analysis results.
+
+Generates plain text reports without markdown formatting,
+suitable for environments that don't support rich text.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -10,15 +12,14 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from prompts.schemas import TCC, Rankings
 from src.version import __version__
-from .mermaid_generator import MermaidGenerator
 
 
-class MarkdownExporter:
-    """Export analysis results as Markdown report."""
+class TXTExporter:
+    """Export analysis results as plain text report."""
 
     def __init__(self, template_dir: Optional[Path] = None):
         """
-        Initialize Markdown exporter.
+        Initialize TXT exporter.
 
         Args:
             template_dir: Directory containing Jinja2 templates
@@ -36,8 +37,6 @@ class MarkdownExporter:
             lstrip_blocks=True
         )
 
-        self.mermaid_gen = MermaidGenerator()
-
     def export(
         self,
         result: Dict[str, Any],
@@ -45,11 +44,11 @@ class MarkdownExporter:
         script_name: Optional[str] = None
     ) -> Path:
         """
-        Export analysis result to Markdown report.
+        Export analysis result to TXT report.
 
         Args:
             result: Pipeline execution result (from run_pipeline)
-            output_path: Path to save the Markdown report
+            output_path: Path to save the TXT report
             script_name: Optional script name for the report
 
         Returns:
@@ -73,13 +72,13 @@ class MarkdownExporter:
         )
 
         # Render template
-        template = self.env.get_template("report_template.md.j2")
-        markdown_content = template.render(**context)
+        template = self.env.get_template("report_template.txt.j2")
+        txt_content = template.render(**context)
 
         # Write to file
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(markdown_content, encoding="utf-8")
+        output_path.write_text(txt_content, encoding="utf-8")
 
         return output_path
 
@@ -134,16 +133,6 @@ class MarkdownExporter:
         context["total_issues"] = modifications.get("total_issues", len(mod_list))
         context["fixed_issues"] = len([m for m in mod_list if m.applied])
         context["skipped_issues"] = len([m for m in mod_list if not m.applied])
-
-        # Mermaid diagram
-        script_scenes = script_json.get("scenes", [])
-        mermaid_diagram = self.mermaid_gen.generate_tcc_diagram(
-            tccs=tccs,
-            rankings=rankings,
-            script_scenes=script_scenes
-        )
-        context["mermaid_diagram"] = mermaid_diagram
-        context["mermaid_legend"] = self.mermaid_gen.generate_legend()
 
         # Stage metrics for table
         stage_metrics = {}

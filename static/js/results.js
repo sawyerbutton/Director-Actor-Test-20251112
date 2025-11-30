@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         // Display results
         displaySummary(result);
+        displayFullReport(result);  // New: Full report tab
         displayOverview(result);
         displayTCCs(result);
         displayRankings(result);
@@ -58,6 +59,280 @@ function displaySummary(result) {
         document.getElementById('bLineCount').textContent = rankings.b_lines ? rankings.b_lines.length : 0;
         document.getElementById('cLineCount').textContent = rankings.c_lines ? rankings.c_lines.length : 0;
     }
+}
+
+function displayFullReport(result) {
+    const fullReportContent = document.getElementById('fullReportContent');
+    const discoverer = result.discoverer_output;
+    const auditor = result.auditor_output;
+    const modifier = result.modifier_output;
+
+    let html = '';
+
+    // ===== 基本信息 =====
+    html += '<div class="report-section mb-4">';
+    html += '<h4 class="border-bottom pb-2 mb-3"><i class="bi bi-info-circle text-primary"></i> 基本信息</h4>';
+    html += '<div class="row">';
+    html += '<div class="col-md-6"><p><strong>分析时间:</strong> ' + new Date().toLocaleString('zh-CN') + '</p></div>';
+    html += '<div class="col-md-6"><p><strong>系统版本:</strong> v2.10.0</p></div>';
+    html += '</div></div>';
+
+    // ===== 执行概况 =====
+    html += '<div class="report-section mb-4">';
+    html += '<h4 class="border-bottom pb-2 mb-3"><i class="bi bi-speedometer2 text-success"></i> 执行概况</h4>';
+    html += '<table class="table table-sm table-bordered">';
+    html += '<tbody>';
+    if (result.metrics) {
+        if (result.metrics.total_duration_seconds) {
+            html += `<tr><td>总执行时间</td><td><strong>${result.metrics.total_duration_seconds.toFixed(2)} 秒</strong></td></tr>`;
+        }
+        if (result.metrics.total_tokens) {
+            html += `<tr><td>总 Token 数</td><td><strong>${result.metrics.total_tokens.toLocaleString()}</strong></td></tr>`;
+        }
+    }
+    html += `<tr><td>识别的 TCC 数</td><td><strong>${discoverer?.tccs?.length || 0}</strong></td></tr>`;
+    html += `<tr><td>发现的问题数</td><td><strong>${modifier?.validation?.total_issues || 0}</strong></td></tr>`;
+    html += '</tbody></table></div>';
+
+    // ===== 阶段1: TCC 识别 =====
+    html += '<div class="report-section mb-4">';
+    html += '<h4 class="border-bottom pb-2 mb-3"><i class="bi bi-search text-primary"></i> 阶段一：戏剧冲突链（TCC）识别</h4>';
+
+    if (discoverer && discoverer.tccs && discoverer.tccs.length > 0) {
+        const avgConfidence = discoverer.tccs.reduce((sum, tcc) => sum + tcc.confidence, 0) / discoverer.tccs.length;
+        html += `<p>共识别出 <strong>${discoverer.tccs.length}</strong> 个独立的戏剧冲突链，平均置信度 <strong>${(avgConfidence * 100).toFixed(1)}%</strong></p>`;
+
+        discoverer.tccs.forEach((tcc, index) => {
+            html += `<div class="card mb-3 border-start border-4 ${index === 0 ? 'border-warning' : 'border-info'}">`;
+            html += `<div class="card-body">`;
+            html += `<h5 class="card-title">${tcc.tcc_id} <span class="badge ${tcc.confidence >= 0.9 ? 'bg-success' : tcc.confidence >= 0.7 ? 'bg-warning' : 'bg-danger'}">${(tcc.confidence * 100).toFixed(0)}%</span></h5>`;
+            html += `<h6 class="card-subtitle mb-2 text-muted">超级目标</h6>`;
+            html += `<p>${tcc.super_objective}</p>`;
+
+            // 冲突类型
+            if (tcc.core_conflict_type) {
+                html += `<p><strong>核心冲突类型:</strong> ${tcc.core_conflict_type}</p>`;
+            }
+
+            // Forces/驱动力
+            if (tcc.forces && tcc.forces.length > 0) {
+                html += `<p><strong>力量:</strong></p><ul>`;
+                tcc.forces.forEach(f => html += `<li>${f}</li>`);
+                html += `</ul>`;
+            }
+
+            // Evidence scenes
+            if (tcc.evidence && tcc.evidence.length > 0) {
+                html += `<p><strong>证据场景:</strong> `;
+                tcc.evidence.forEach(e => html += `<span class="badge bg-secondary me-1">${e}</span>`);
+                html += `</p>`;
+            }
+
+            html += `</div></div>`;
+        });
+    } else {
+        html += '<p class="text-muted">未识别到 TCC</p>';
+    }
+    html += '</div>';
+
+    // ===== 阶段2: A/B/C 线分级 =====
+    html += '<div class="report-section mb-4">';
+    html += '<h4 class="border-bottom pb-2 mb-3"><i class="bi bi-bar-chart text-success"></i> 阶段二：A/B/C 线分级</h4>';
+
+    if (auditor && auditor.rankings) {
+        const rankings = auditor.rankings;
+
+        // A-line
+        html += '<div class="mb-3">';
+        html += '<h5><span class="badge bg-warning text-dark">A 线（主线 / Spine）</span></h5>';
+        if (rankings.a_line) {
+            html += `<p><strong>${rankings.a_line.tcc_id}:</strong> ${rankings.a_line.super_objective || '未指定'}</p>`;
+            html += `<ul>`;
+            html += `<li><strong>Spine 评分:</strong> ${rankings.a_line.spine_score?.toFixed(1) || 'N/A'} / 10</li>`;
+            if (rankings.a_line.reasoning) {
+                html += `<li><strong>场景数:</strong> ${rankings.a_line.reasoning.scene_count || 'N/A'}</li>`;
+            }
+            html += `</ul>`;
+            if (rankings.a_line.reasoning?.reasoning) {
+                html += `<p><strong>评估理由:</strong> ${rankings.a_line.reasoning.reasoning}</p>`;
+            }
+        }
+        html += '</div>';
+
+        // B-lines
+        html += '<div class="mb-3">';
+        html += '<h5><span class="badge bg-info">B 线（副线 / Heart）</span></h5>';
+        if (rankings.b_lines && rankings.b_lines.length > 0) {
+            rankings.b_lines.forEach(line => {
+                html += `<p><strong>${line.tcc_id}:</strong> ${line.super_objective || '未指定'}</p>`;
+                html += `<ul>`;
+                html += `<li><strong>Heart 评分:</strong> ${line.heart_score?.toFixed(1) || 'N/A'} / 10</li>`;
+                html += `</ul>`;
+            });
+        } else {
+            html += '<p class="text-muted">未识别到 B 线</p>';
+        }
+        html += '</div>';
+
+        // C-lines
+        html += '<div class="mb-3">';
+        html += '<h5><span class="badge bg-secondary">C 线（次线 / Flavor）</span></h5>';
+        if (rankings.c_lines && rankings.c_lines.length > 0) {
+            rankings.c_lines.forEach(line => {
+                html += `<p><strong>${line.tcc_id}:</strong> ${line.super_objective || '未指定'}</p>`;
+                html += `<ul>`;
+                html += `<li><strong>Flavor 评分:</strong> ${line.flavor_score?.toFixed(1) || 'N/A'} / 10</li>`;
+                html += `</ul>`;
+            });
+        } else {
+            html += '<p class="text-muted">未识别到 C 线</p>';
+        }
+        html += '</div>';
+    } else {
+        html += '<p class="text-muted">无排序数据</p>';
+    }
+    html += '</div>';
+
+    // ===== 阶段3: 结构修正 =====
+    html += '<div class="report-section mb-4">';
+    html += '<h4 class="border-bottom pb-2 mb-3"><i class="bi bi-wrench text-warning"></i> 阶段三：结构修正</h4>';
+
+    if (modifier && modifier.validation) {
+        const validation = modifier.validation;
+        html += '<div class="row mb-3">';
+        html += `<div class="col-md-4"><div class="card text-center"><div class="card-body"><h3>${validation.total_issues}</h3><small>发现问题</small></div></div></div>`;
+        html += `<div class="col-md-4"><div class="card text-center bg-success text-white"><div class="card-body"><h3>${validation.fixed}</h3><small>已修复</small></div></div></div>`;
+        html += `<div class="col-md-4"><div class="card text-center bg-secondary text-white"><div class="card-body"><h3>${validation.skipped}</h3><small>已跳过</small></div></div></div>`;
+        html += '</div>';
+
+        if (modifier.modification_log && modifier.modification_log.length > 0) {
+            html += '<h6>修正详情:</h6>';
+            html += '<table class="table table-sm">';
+            html += '<thead><tr><th>#</th><th>问题ID</th><th>场景</th><th>操作</th><th>状态</th></tr></thead>';
+            html += '<tbody>';
+            modifier.modification_log.forEach((mod, index) => {
+                const statusBadge = mod.applied
+                    ? '<span class="badge bg-success">已应用</span>'
+                    : '<span class="badge bg-secondary">已跳过</span>';
+                html += `<tr>`;
+                html += `<td>${index + 1}</td>`;
+                html += `<td>${mod.issue_id}</td>`;
+                html += `<td>${mod.scene_id || 'N/A'}</td>`;
+                html += `<td>${mod.change_type || 'N/A'}</td>`;
+                html += `<td>${statusBadge}</td>`;
+                html += `</tr>`;
+            });
+            html += '</tbody></table>';
+        }
+    } else {
+        html += '<div class="alert alert-success"><i class="bi bi-check-circle"></i> 未发现需要修正的结构性问题</div>';
+    }
+    html += '</div>';
+
+    // ===== 关键发现 =====
+    html += '<div class="report-section mb-4">';
+    html += '<h4 class="border-bottom pb-2 mb-3"><i class="bi bi-lightbulb text-info"></i> 关键发现</h4>';
+    html += '<ul class="list-group list-group-flush">';
+
+    // 自动生成关键发现
+    const findings = generateKeyFindings(discoverer, auditor, modifier);
+    findings.forEach(finding => {
+        html += `<li class="list-group-item"><i class="bi bi-check2-circle text-success me-2"></i>${finding}</li>`;
+    });
+    html += '</ul></div>';
+
+    // ===== 建议 =====
+    html += '<div class="report-section mb-4">';
+    html += '<h4 class="border-bottom pb-2 mb-3"><i class="bi bi-flag text-danger"></i> 建议</h4>';
+    html += '<ul class="list-group list-group-flush">';
+
+    // 自动生成建议
+    const recommendations = generateRecommendations(discoverer, auditor, modifier);
+    recommendations.forEach(rec => {
+        html += `<li class="list-group-item"><i class="bi bi-arrow-right-circle text-primary me-2"></i>${rec}</li>`;
+    });
+    html += '</ul></div>';
+
+    // Footer
+    html += '<hr><p class="text-muted text-center small">本报告由 AI 自动生成，建议结合人工审核使用</p>';
+
+    fullReportContent.innerHTML = html;
+}
+
+function generateKeyFindings(discoverer, auditor, modifier) {
+    const findings = [];
+
+    // TCC 数量分析
+    const tccCount = discoverer?.tccs?.length || 0;
+    if (tccCount === 1) {
+        findings.push('剧本为单线叙事，结构简洁清晰');
+    } else if (tccCount === 2) {
+        findings.push('剧本采用双线叙事，主副线并行发展');
+    } else if (tccCount >= 3) {
+        findings.push(`剧本为多线叙事（${tccCount}条线），结构复杂度较高`);
+    }
+
+    // 线级分布
+    if (auditor?.rankings) {
+        if (auditor.rankings.a_line) {
+            const objective = auditor.rankings.a_line.super_objective || '';
+            findings.push(`主线（A线）明确：${objective.substring(0, 40)}...`);
+        }
+
+        const bCount = auditor.rankings.b_lines?.length || 0;
+        if (bCount > 0) {
+            findings.push(`副线（B线）数量: ${bCount}条，提供情感深度`);
+        }
+
+        const cCount = auditor.rankings.c_lines?.length || 0;
+        if (cCount > 0) {
+            findings.push(`次线（C线）数量: ${cCount}条，增加叙事层次`);
+        }
+    }
+
+    // 修正情况
+    const totalIssues = modifier?.validation?.total_issues || 0;
+    if (totalIssues === 0) {
+        findings.push('剧本结构完整，未发现需修正的结构性问题');
+    } else {
+        const fixed = modifier?.validation?.fixed || 0;
+        findings.push(`发现${totalIssues}个结构性问题，已修复${fixed}个`);
+    }
+
+    return findings;
+}
+
+function generateRecommendations(discoverer, auditor, modifier) {
+    const recommendations = [];
+
+    // 检查 B 线
+    if (auditor?.rankings?.a_line) {
+        const bCount = auditor.rankings.b_lines?.length || 0;
+        if (bCount === 0) {
+            recommendations.push('考虑增加B线（副线），为主线提供情感深度和人物内部冲突');
+        }
+    }
+
+    // 检查低置信度 TCC
+    const lowConfidenceTccs = discoverer?.tccs?.filter(tcc => tcc.confidence < 0.7) || [];
+    if (lowConfidenceTccs.length > 0) {
+        const ids = lowConfidenceTccs.map(t => t.tcc_id).join(', ');
+        recommendations.push(`部分TCC置信度较低（<70%），建议审核以下TCC的独立性: ${ids}`);
+    }
+
+    // 检查问题数量
+    const totalIssues = modifier?.validation?.total_issues || 0;
+    if (totalIssues > 5) {
+        recommendations.push('结构性问题较多，建议重点检查场景的setup-payoff因果链完整性');
+    }
+
+    // 默认建议
+    if (recommendations.length === 0) {
+        recommendations.push('剧本结构良好，建议维持当前设计');
+        recommendations.push('可考虑进一步深化角色冲突和情感弧线');
+    }
+
+    return recommendations;
 }
 
 function displayOverview(result) {
@@ -338,46 +613,160 @@ function displayMermaidDiagram(result) {
         return;
     }
 
-    // Generate simple Mermaid diagram
-    let diagram = 'graph LR\n';
-
-    // Add A-line
-    if (auditor.rankings && auditor.rankings.a_line) {
-        const aLine = auditor.rankings.a_line;
-        diagram += `    ${aLine.tcc_id}[${aLine.tcc_id}]:::aline\n`;
-    }
-
-    // Add B-lines
-    if (auditor.rankings && auditor.rankings.b_lines) {
-        auditor.rankings.b_lines.forEach(line => {
-            diagram += `    ${line.tcc_id}[${line.tcc_id}]:::bline\n`;
-        });
-    }
-
-    // Add C-lines
-    if (auditor.rankings && auditor.rankings.c_lines) {
-        auditor.rankings.c_lines.forEach(line => {
-            diagram += `    ${line.tcc_id}[${line.tcc_id}]:::cline\n`;
-        });
-    }
-
-    // Add styles
-    diagram += '\n    classDef aline fill:#ffc107,stroke:#ff9800,stroke-width:3px\n';
-    diagram += '    classDef bline fill:#17a2b8,stroke:#138496,stroke-width:2px\n';
-    diagram += '    classDef cline fill:#6c757d,stroke:#495057,stroke-width:1px\n';
-
     const diagramElement = document.getElementById('mermaidDiagram');
+    const tccs = discoverer.tccs || [];
+    const rankings = auditor.rankings;
 
-    // Render Mermaid diagram using mermaid.render() API
+    if (tccs.length === 0) {
+        diagramElement.innerHTML = '<div class="alert alert-info">没有TCC数据可供可视化</div>';
+        return;
+    }
+
+    // Build TCC info map for easy access
+    const tccMap = {};
+    tccs.forEach(tcc => {
+        tccMap[tcc.tcc_id] = tcc;
+    });
+
+    // Build line type map (A/B/C)
+    const lineTypeMap = {};
+    if (rankings) {
+        if (rankings.a_line) lineTypeMap[rankings.a_line.tcc_id] = 'A';
+        (rankings.b_lines || []).forEach(line => lineTypeMap[line.tcc_id] = 'B');
+        (rankings.c_lines || []).forEach(line => lineTypeMap[line.tcc_id] = 'C');
+    }
+
+    // Generate Mermaid diagram
+    let diagram = 'flowchart TD\n';
+    diagram += '    %% TCC 关系图 - 自动生成\n\n';
+
+    // Add nodes with rich info
+    diagram += '    %% === TCC 节点 ===\n';
+    tccs.forEach(tcc => {
+        const lineType = lineTypeMap[tcc.tcc_id] || '';
+        const lineLabel = lineType ? `【${lineType}线】` : '';
+        const objective = truncateText(tcc.super_objective || '未知目标', 25);
+        const confidence = ((tcc.confidence || 0) * 100).toFixed(0);
+
+        // Create rich node label
+        const label = `${lineLabel}${tcc.tcc_id}<br/>${objective}<br/>置信度: ${confidence}%`;
+        diagram += `    ${tcc.tcc_id}["${label}"]\n`;
+    });
+    diagram += '\n';
+
+    // === 关键：添加 TCC 之间的关系连接 ===
+    diagram += '    %% === TCC 关系连接 ===\n';
+
+    // 1. 基于证据场景重叠建立关系
+    const sceneToTccs = {};
+    tccs.forEach(tcc => {
+        const scenes = tcc.evidence_scenes || tcc.evidence || [];
+        scenes.forEach(sceneId => {
+            if (!sceneToTccs[sceneId]) sceneToTccs[sceneId] = [];
+            sceneToTccs[sceneId].push(tcc.tcc_id);
+        });
+    });
+
+    // 找出共享场景的TCC对
+    const connections = new Set();
+    Object.entries(sceneToTccs).forEach(([sceneId, tccIds]) => {
+        if (tccIds.length >= 2) {
+            // 这些TCC共享同一个场景，建立关系
+            for (let i = 0; i < tccIds.length; i++) {
+                for (let j = i + 1; j < tccIds.length; j++) {
+                    const pair = [tccIds[i], tccIds[j]].sort().join('|');
+                    if (!connections.has(pair)) {
+                        connections.add(pair);
+                        diagram += `    ${tccIds[i]} <-->|"场景交织"| ${tccIds[j]}\n`;
+                    }
+                }
+            }
+        }
+    });
+
+    // 2. 如果没有场景重叠，基于叙事层级建立关系 (A线->B线->C线)
+    if (connections.size === 0 && rankings) {
+        const aLine = rankings.a_line;
+        const bLines = rankings.b_lines || [];
+        const cLines = rankings.c_lines || [];
+
+        // A线连接到所有B线 (主线影响副线)
+        if (aLine) {
+            bLines.forEach(bLine => {
+                diagram += `    ${aLine.tcc_id} -->|"主线驱动"| ${bLine.tcc_id}\n`;
+            });
+            // 如果没有B线，A线连接C线
+            if (bLines.length === 0) {
+                cLines.forEach(cLine => {
+                    diagram += `    ${aLine.tcc_id} -.->|"情节点缀"| ${cLine.tcc_id}\n`;
+                });
+            }
+        }
+
+        // B线连接到C线 (副线呼应次线)
+        bLines.forEach(bLine => {
+            cLines.forEach(cLine => {
+                diagram += `    ${bLine.tcc_id} -.->|"情节呼应"| ${cLine.tcc_id}\n`;
+            });
+        });
+    }
+
+    // 3. 如果仍然没有连接，添加基于角色冲突的推断连接
+    if (connections.size === 0 && tccs.length >= 2) {
+        // 将所有TCC连接到主线（如果存在）
+        const mainTcc = rankings?.a_line?.tcc_id || tccs[0].tcc_id;
+        tccs.forEach(tcc => {
+            if (tcc.tcc_id !== mainTcc) {
+                diagram += `    ${mainTcc} -->|"叙事关联"| ${tcc.tcc_id}\n`;
+            }
+        });
+    }
+
+    diagram += '\n';
+
+    // Add styles for A/B/C lines
+    diagram += '    %% === 样式定义 ===\n';
+    diagram += '    classDef aline fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px,color:#fff\n';
+    diagram += '    classDef bline fill:#4ecdc4,stroke:#20a99e,stroke-width:2px,color:#fff\n';
+    diagram += '    classDef cline fill:#95e1d3,stroke:#52b69a,stroke-width:2px,color:#000\n';
+    diagram += '    classDef default fill:#e9ecef,stroke:#495057,stroke-width:1px\n';
+    diagram += '\n';
+
+    // Apply styles to nodes
+    tccs.forEach(tcc => {
+        const lineType = lineTypeMap[tcc.tcc_id];
+        if (lineType === 'A') {
+            diagram += `    class ${tcc.tcc_id} aline\n`;
+        } else if (lineType === 'B') {
+            diagram += `    class ${tcc.tcc_id} bline\n`;
+        } else if (lineType === 'C') {
+            diagram += `    class ${tcc.tcc_id} cline\n`;
+        }
+    });
+
+    // Render Mermaid diagram
     if (window.mermaid) {
         try {
-            // Generate unique ID for this diagram
             const diagramId = 'mermaid-' + Date.now();
-
-            // Use mermaid.render() to get SVG
-            mermaid.render(diagramId, diagram).then(result => {
-                // result.svg contains the rendered SVG
-                diagramElement.innerHTML = result.svg;
+            mermaid.render(diagramId, diagram).then(renderResult => {
+                // 添加图例说明
+                let legendHtml = `
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <h6 class="mb-2"><i class="bi bi-info-circle"></i> 图例说明</h6>
+                        <div class="d-flex flex-wrap gap-3">
+                            <span><span class="badge" style="background-color:#ff6b6b">■</span> A线 (主线/Spine)</span>
+                            <span><span class="badge" style="background-color:#4ecdc4">■</span> B线 (副线/Heart)</span>
+                            <span><span class="badge" style="background-color:#95e1d3;color:#000">■</span> C线 (次线/Flavor)</span>
+                        </div>
+                        <div class="mt-2 small text-muted">
+                            <strong>连接关系：</strong>
+                            <code>──▶</code> 主线驱动 |
+                            <code>◀──▶</code> 场景交织 |
+                            <code>- - -▶</code> 情节呼应
+                        </div>
+                    </div>
+                `;
+                diagramElement.innerHTML = legendHtml + renderResult.svg;
             }).catch(err => {
                 console.error('Mermaid rendering error:', err);
                 diagramElement.innerHTML = `<div class="alert alert-warning">
@@ -386,7 +775,7 @@ function displayMermaidDiagram(result) {
                     <br><br>
                     <details>
                         <summary>Mermaid 代码</summary>
-                        <pre>${diagram}</pre>
+                        <pre class="bg-dark text-light p-2">${escapeHtml(diagram)}</pre>
                     </details>
                 </div>`;
             });
@@ -403,6 +792,20 @@ function displayMermaidDiagram(result) {
             Mermaid 库未加载，无法渲染图表
         </div>`;
     }
+}
+
+// Helper function to truncate text
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength - 3) + '...';
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function displayRawData(result) {
