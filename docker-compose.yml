@@ -1,10 +1,10 @@
 # ============================================================================
 # Docker Compose Configuration for Script Analysis System
 # ============================================================================
-# Version: 2.8.1
+# Version: 2.9.0
 # Purpose: Simplified deployment of screenplay analysis system with Web UI
 # Features: TCC analysis, Action Analysis Protocol (AAP), Chinese output,
-#           Gemini model selection, dual API key support
+#           Gemini model selection, dual API key support, Thinking Mode Optimization
 # ============================================================================
 
 services:
@@ -12,13 +12,13 @@ services:
   # Main Application Service
   # ==========================================================================
   web:
-    image: screenplay-analysis:${APP_VERSION:-2.8.1}
+    image: screenplay-analysis:${APP_VERSION:-2.9.0}
     container_name: screenplay-web
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        - APP_VERSION=${APP_VERSION:-2.8.1}
+        - APP_VERSION=${APP_VERSION:-2.9.0}
     ports:
       - "8014:8000"
     environment:
