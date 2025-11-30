@@ -710,6 +710,6 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ---
 
-**文档版本**: 1.3
-**最后更新**: 2025-11-24
+**文档版本**: 1.4
+**最后更新**: 2025-11-30
 **维护者**: AI Assistant (Claude Code)
