@@ -295,7 +295,10 @@ class ModificationLogEntry(BaseModel):
         if v is None:
             return None
         if isinstance(v, str):
-            v_lower = v.lower()
+            v_lower = v.lower().strip()
+            # Handle 'none', 'N/A', etc. as no change - convert to 'update' (no-op)
+            if v_lower in ['none', 'skip', 'no_change', 'n/a', 'na', 'null', '']:
+                return 'update'  # Treat as update with no actual change
             # Map various removal-related strings to 'remove'
             if 'remove' in v_lower or 'delete' in v_lower or 'clear' in v_lower:
                 return 'remove'

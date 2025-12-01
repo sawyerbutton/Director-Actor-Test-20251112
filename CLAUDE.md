@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.10.0 (2025-11-30)
-**Last Updated**: 2025-11-30
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + TXT export + Full Report Tab + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization)
+**Current Version**: 2.11.0 (2025-12-01)
+**Last Updated**: 2025-12-01
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + TXT export + Full Report Tab + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization + Analysis Cache Persistence)
 
 ---
 
@@ -62,8 +62,66 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 Gemini 3 Dedicated API Key** (v2.8.1): ✅ Dual API key support (`GOOGLE_GEMINI3_API_KEY`)
 - **🆕 Gemini Thinking Mode Optimization** (v2.9.0): ✅ 95% speed improvement via thinking_level=LOW
 - **🆕 TXT Report Export** (v2.10.0): ✅ Plain text report format with ASCII formatting
+- **🆕 Analysis Cache Persistence** (v2.11.0): ✅ SQLite-based cache with 21,000x speedup on cache hits
 
-### 🎉 Recent Fixes (2025-11-30)
+### 🎉 Recent Fixes (2025-12-01)
+
+#### Session 16: Analysis Cache Persistence (v2.11.0)
+1. **SQLite Cache System** (✅ NEW - Session 16)
+   - **Feature**: Persist analysis results to SQLite database for instant retrieval
+   - **New Files**:
+     - `src/db/__init__.py` - Database module initialization
+     - `src/db/models.py` (~200 lines) - AnalysisCache, CacheStats Pydantic models + init_database()
+     - `src/db/cache.py` (~490 lines) - CacheManager class with full CRUD operations
+   - **Cache Key**: SHA256(script_content) + provider + model
+   - **Default Expiry**: 30 days (configurable via `DEFAULT_CACHE_EXPIRY_DAYS`)
+   - **Database Path**: `data/analysis_cache.db` (configurable via `DATABASE_PATH` env var)
+
+2. **Web UI History Page** (✅ NEW - Session 16)
+   - **Feature**: View and manage cached analysis history
+   - **New Template**: `templates/history.html` (~475 lines)
+   - **Route**: `/history` - Shows all cached entries with search/filter
+   - **Features**:
+     - Cache statistics (total entries, hit rate, hits/misses)
+     - Filter by provider, model, script name
+     - View cached result details in modal
+     - Delete individual entries or cleanup expired
+   - **Location**: `src/web/app.py` (multiple endpoints added)
+
+3. **Cache API Endpoints** (✅ NEW - Session 16)
+   - `GET /api/history` - List cached entries with pagination
+   - `GET /api/history/{id}` - Get single cache entry details
+   - `DELETE /api/history/{id}` - Delete cache entry
+   - `GET /api/cache/stats` - Get cache statistics
+   - `POST /api/cache/cleanup` - Remove expired entries
+   - **Location**: `src/web/app.py:850-950`
+
+4. **Cache Integration in Pipeline** (✅ NEW - Session 16)
+   - **Before Analysis**: Check cache for existing results
+   - **After Analysis**: Save complete results (all 3 stages) to cache
+   - **Cache Hit Response**: Returns immediately with `from_cache: true`
+   - **Location**: `src/web/app.py:936-967` (save logic), `src/web/app.py:380-420` (check logic)
+
+5. **Bug Fixes** (✅ FIXED - Session 16)
+   - **Cache save only on complete**: Modified to only save when all 3 stages succeed
+   - **Cache hit/miss logging**: Added detailed logging for debugging
+   - **change_type validation**: Added `normalize_change_type` validator for LLM output variations
+   - **Location**: `prompts/schemas.py:291-308`
+
+6. **End-to-End Testing** (✅ VERIFIED - Session 16)
+   | Test Item | Status | Notes |
+   |-----------|--------|-------|
+   | Cache MISS | ✅ | First analysis: 211 seconds |
+   | Cache Save | ✅ | Auto-save on 3-stage completion |
+   | Cache HIT | ✅ | Second analysis: ~10ms |
+   | Cache Stats | ✅ | 75% hit rate accuracy |
+   | History Page | ✅ | `/history` displays entries |
+
+7. **Performance Improvement** (✅ VERIFIED - Session 16)
+   | Scenario | Time | Speedup |
+   |----------|------|---------|
+   | First Analysis (Cache MISS) | 211s | Baseline |
+   | Repeat Analysis (Cache HIT) | ~10ms | **21,000x** |
 
 #### Session 15: TXT Report Export + Full Report Tab + Mermaid Enhancement (v2.10.0)
 1. **TXT Report Export** (✅ NEW - Session 15)
@@ -561,6 +619,39 @@ python -m src.cli analyze examples/golden/百妖_ep09_s01-s05.json
   - Supports `thinking_level="LOW"` or `"HIGH"` parameter
   - **Key feature**: 95% speed improvement via thinking mode optimization
   - **Start here for**: Gemini 3 integration, thinking mode configuration
+
+#### 🆕 Analysis Cache System (v2.11.0)
+- **[`src/db/__init__.py`](src/db/__init__.py)** (30 lines)
+  - Database module initialization
+  - Exports CacheManager, AnalysisCache, CacheStats
+  - **Start here for**: Database module imports
+
+- **[`src/db/models.py`](src/db/models.py)** (~200 lines)
+  - `AnalysisCache` - Pydantic model for cached analysis results
+  - `CacheStats` - Statistics model (hits, misses, hit rate)
+  - `init_database()` - SQLite schema initialization
+  - **Key constants**: `DEFAULT_CACHE_EXPIRY_DAYS=30`, `DEFAULT_DB_PATH`
+  - **Start here for**: Cache data models, database schema
+
+- **[`src/db/cache.py`](src/db/cache.py)** (~490 lines)
+  - `CacheManager` class with full CRUD operations
+  - `compute_hash()` - SHA256 content hashing
+  - `get()` / `set()` - Cache retrieval and storage
+  - `get_stats()` - Cache statistics
+  - `cleanup_expired()` - Remove expired entries
+  - **Start here for**: Cache operations, integration with pipeline
+
+- **[`templates/history.html`](templates/history.html)** (~475 lines)
+  - Cache history page template
+  - Cache statistics cards (entries, hit rate, hits/misses)
+  - Filter by provider, model, script name
+  - Pagination and detail modal
+  - **Start here for**: History page UI
+
+- **[`tests/test_cache.py`](tests/test_cache.py)** (~150 lines)
+  - Unit tests for cache system
+  - Tests: hash computation, get/set, expiry, statistics
+  - **Start here for**: Cache testing patterns
 
 #### 🆕 TXT Script Parser (v2.4.0)
 - **[`src/parser/base.py`](src/parser/base.py)** (80 lines)
@@ -1242,12 +1333,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.10.0 (Session 15: TXT Report Export + Full Report Tab + Mermaid Enhancement)
+**Project Version**: 2.11.0 (Session 16: Analysis Cache Persistence)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 2.5 (Added TXT Report Export, Full Report Tab, Mermaid Enhancement)
-**Last Updated**: 2025-11-30
-**Latest Commit**: d4cf885 (docs: update PROJECT_STATUS.md version to 1.4)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + Markdown/TXT export + Full Report Tab + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization - Production Ready)
+**Documentation Version**: 2.6 (Added Analysis Cache Persistence, History Page)
+**Last Updated**: 2025-12-01
+**Latest Commit**: 92fa942 (feat: Session 16 - Analysis Cache Persistence)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + Markdown/TXT export + Full Report Tab + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization + Analysis Cache Persistence - Production Ready)
 
 ---
 

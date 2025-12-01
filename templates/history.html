@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+
+{% block title %}历史记录 - 剧本叙事结构分析系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-clock-history"></i> 分析历史记录</h2>
+            <div>
+                <button class="btn btn-outline-secondary btn-sm" id="refreshBtn">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+                <button class="btn btn-outline-danger btn-sm" id="cleanupBtn">
+                    <i class="bi bi-trash"></i> 清理过期
+                </button>
+            </div>
+        </div>
+
+        <!-- Cache Stats -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">总记录数</h5>
+                        <h2 class="mb-0" id="totalEntries">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">缓存命中率</h5>
+                        <h2 class="mb-0" id="hitRate">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">缓存命中</h5>
+                        <h2 class="mb-0 text-success" id="totalHits">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">缓存未命中</h5>
+                        <h2 class="mb-0 text-warning" id="totalMisses">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">搜索剧本名称</label>
+                        <input type="text" class="form-control" id="searchInput" placeholder="输入剧本名称...">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">提供商</label>
+                        <select class="form-select" id="providerFilter">
+                            <option value="">全部</option>
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="gemini">Gemini</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="openai">OpenAI</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">模型</label>
+                        <select class="form-select" id="modelFilter">
+                            <option value="">全部</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100" id="searchBtn">
+                            <i class="bi bi-search"></i> 搜索
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Table -->
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>剧本名称</th>
+                                <th>提供商/模型</th>
+                                <th>场景数</th>
+                                <th>TCC数</th>
+                                <th>处理时间</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    加载中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav aria-label="History pagination" id="paginationNav" style="display: none;">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item" id="prevPage">
+                            <a class="page-link" href="#" tabindex="-1">上一页</a>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link" id="pageInfo">第 1 页</span>
+                        </li>
+                        <li class="page-item" id="nextPage">
+                            <a class="page-link" href="#">下一页</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <span id="modalScriptName">分析详情</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// State
+let currentPage = 0;
+const pageSize = 20;
+let totalEntries = 0;
+
+// Load cache stats
+async function loadStats() {
+    try {
+        const response = await fetch('/api/cache/stats');
+        const stats = await response.json();
+
+        document.getElementById('totalEntries').textContent = stats.total_entries;
+        document.getElementById('hitRate').textContent = (stats.hit_rate * 100).toFixed(1) + '%';
+        document.getElementById('totalHits').textContent = stats.total_hits;
+        document.getElementById('totalMisses').textContent = stats.total_misses;
+
+        // Populate model filter with available models
+        const modelSelect = document.getElementById('modelFilter');
+        modelSelect.innerHTML = '<option value="">全部</option>';
+        for (const [model, count] of Object.entries(stats.entries_by_model || {})) {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = `${model} (${count})`;
+            modelSelect.appendChild(option);
+        }
+    } catch (error) {
+        console.error('Failed to load stats:', error);
+    }
+}
+
+// Load history entries
+async function loadHistory() {
+    const search = document.getElementById('searchInput').value;
+    const provider = document.getElementById('providerFilter').value;
+    const model = document.getElementById('modelFilter').value;
+
+    const params = new URLSearchParams({
+        limit: pageSize,
+        offset: currentPage * pageSize
+    });
+    if (search) params.append('search', search);
+    if (provider) params.append('provider', provider);
+    if (model) params.append('model', model);
+
+    try {
+        const response = await fetch(`/api/history?${params}`);
+        const data = await response.json();
+
+        totalEntries = data.total;
+        renderTable(data.entries);
+        updatePagination(data);
+    } catch (error) {
+        console.error('Failed to load history:', error);
+        document.getElementById('historyTableBody').innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-danger">
+                    <i class="bi bi-exclamation-triangle"></i> 加载失败: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Render table
+function renderTable(entries) {
+    const tbody = document.getElementById('historyTableBody');
+
+    if (entries.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-muted py-5">
+                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                    <p class="mt-3 mb-0">暂无历史记录</p>
+                    <small>上传并分析剧本后，结果将自动缓存到这里</small>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = entries.map(entry => `
+        <tr>
+            <td><code>${entry.id}</code></td>
+            <td>
+                <strong>${escapeHtml(entry.script_name)}</strong>
+                <br>
+                <small class="text-muted">${entry.content_hash.substring(0, 12)}...</small>
+            </td>
+            <td>
+                <span class="badge bg-primary">${entry.provider}</span>
+                <br>
+                <small>${entry.model || 'default'}</small>
+            </td>
+            <td>${entry.scene_count || '-'}</td>
+            <td>${entry.tcc_count || '-'}</td>
+            <td>${entry.processing_time ? entry.processing_time.toFixed(1) + 's' : '-'}</td>
+            <td>
+                <small>${formatDate(entry.created_at)}</small>
+                <br>
+                <small class="text-muted">过期: ${formatDate(entry.expires_at)}</small>
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="viewDetail(${entry.id})" title="查看详情">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteEntry(${entry.id})" title="删除">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Update pagination
+function updatePagination(data) {
+    const nav = document.getElementById('paginationNav');
+    const prevBtn = document.getElementById('prevPage');
+    const nextBtn = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+
+    if (data.total <= pageSize) {
+        nav.style.display = 'none';
+        return;
+    }
+
+    nav.style.display = 'block';
+    const totalPages = Math.ceil(data.total / pageSize);
+    pageInfo.textContent = `第 ${currentPage + 1} / ${totalPages} 页 (共 ${data.total} 条)`;
+
+    prevBtn.classList.toggle('disabled', currentPage === 0);
+    nextBtn.classList.toggle('disabled', !data.has_more);
+}
+
+// View detail
+async function viewDetail(id) {
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    modal.show();
+
+    document.getElementById('modalContent').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `;
+
+    try {
+        const response = await fetch(`/api/history/${id}`);
+        const entry = await response.json();
+
+        document.getElementById('modalScriptName').textContent = entry.script_name;
+        document.getElementById('modalContent').innerHTML = renderDetailContent(entry);
+    } catch (error) {
+        document.getElementById('modalContent').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> 加载失败: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Render detail content
+function renderDetailContent(entry) {
+    const stage1 = entry.stage1_result || {};
+    const stage2 = entry.stage2_result || {};
+    const stage3 = entry.stage3_result || {};
+
+    return `
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h6>基本信息</h6>
+                <table class="table table-sm">
+                    <tr><td>ID</td><td><code>${entry.id}</code></td></tr>
+                    <tr><td>内容哈希</td><td><code>${entry.content_hash}</code></td></tr>
+                    <tr><td>提供商</td><td>${entry.provider}</td></tr>
+                    <tr><td>模型</td><td>${entry.model || 'default'}</td></tr>
+                    <tr><td>场景数</td><td>${entry.scene_count || '-'}</td></tr>
+                    <tr><td>TCC数</td><td>${entry.tcc_count || '-'}</td></tr>
+                    <tr><td>处理时间</td><td>${entry.processing_time ? entry.processing_time.toFixed(2) + 's' : '-'}</td></tr>
+                    <tr><td>API调用次数</td><td>${entry.api_calls || '-'}</td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>时间信息</h6>
+                <table class="table table-sm">
+                    <tr><td>创建时间</td><td>${formatDate(entry.created_at)}</td></tr>
+                    <tr><td>过期时间</td><td>${formatDate(entry.expires_at)}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <h6>Stage 1: TCC 识别结果</h6>
+        <div class="bg-light p-3 rounded mb-3" style="max-height: 300px; overflow-y: auto;">
+            <pre class="mb-0"><code>${JSON.stringify(stage1, null, 2)}</code></pre>
+        </div>
+
+        <h6>Stage 2: 排名结果</h6>
+        <div class="bg-light p-3 rounded mb-3" style="max-height: 200px; overflow-y: auto;">
+            <pre class="mb-0"><code>${JSON.stringify(stage2, null, 2)}</code></pre>
+        </div>
+
+        <h6>Stage 3: 修改结果</h6>
+        <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+            <pre class="mb-0"><code>${JSON.stringify(stage3, null, 2)}</code></pre>
+        </div>
+    `;
+}
+
+// Delete entry
+async function deleteEntry(id) {
+    if (!confirm(`确定要删除记录 #${id} 吗？此操作不可恢复。`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/history/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            loadStats();
+            loadHistory();
+        } else {
+            const error = await response.json();
+            alert('删除失败: ' + (error.detail || '未知错误'));
+        }
+    } catch (error) {
+        alert('删除失败: ' + error.message);
+    }
+}
+
+// Cleanup expired
+async function cleanupExpired() {
+    if (!confirm('确定要清理所有过期的缓存记录吗？')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/cache/cleanup', { method: 'POST' });
+        const result = await response.json();
+        alert(`清理完成，共删除 ${result.removed_count} 条过期记录`);
+        loadStats();
+        loadHistory();
+    } catch (error) {
+        alert('清理失败: ' + error.message);
+    }
+}
+
+// Helper functions
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// Event listeners
+document.getElementById('refreshBtn').addEventListener('click', () => {
+    loadStats();
+    loadHistory();
+});
+
+document.getElementById('cleanupBtn').addEventListener('click', cleanupExpired);
+
+document.getElementById('searchBtn').addEventListener('click', () => {
+    currentPage = 0;
+    loadHistory();
+});
+
+document.getElementById('searchInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        currentPage = 0;
+        loadHistory();
+    }
+});
+
+document.getElementById('prevPage').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (currentPage > 0) {
+        currentPage--;
+        loadHistory();
+    }
+});
+
+document.getElementById('nextPage').addEventListener('click', (e) => {
+    e.preventDefault();
+    if ((currentPage + 1) * pageSize < totalEntries) {
+        currentPage++;
+        loadHistory();
+    }
+});
+
+// Initial load
+loadStats();
+loadHistory();
+</script>
+{% endblock %}

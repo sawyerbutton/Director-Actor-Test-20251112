@@ -17,6 +17,7 @@ from prompts.schemas import Script, validate_setup_payoff_integrity
 from src.pipeline import run_pipeline
 from src.ab_testing import ABTestRunner, PromptVariant
 from src.exporters import MarkdownExporter, TXTExporter
+from src.db import CacheManager
 import logging
 from dotenv import load_dotenv
 
@@ -350,6 +351,146 @@ def cmd_ab_test(args):
         sys.exit(1)
 
 
+# ============================================================================
+# Cache Commands (Session 16)
+# ============================================================================
+
+def cmd_cache_list(args):
+    """List cached analysis entries."""
+    try:
+        cache = CacheManager()
+        entries, total = cache.list_all(
+            limit=args.limit,
+            search=args.search,
+            provider=args.provider,
+            model=args.model
+        )
+
+        print("\n" + "="*100)
+        print("📋 CACHED ANALYSIS ENTRIES")
+        print("="*100)
+
+        if not entries:
+            print("\n暂无缓存记录\n")
+            return
+
+        # Print table header
+        print(f"\n{'ID':<6} {'剧本名称':<30} {'提供商':<12} {'模型':<20} {'场景':<6} {'TCC':<5} {'耗时':<10} {'创建时间':<20}")
+        print("-"*100)
+
+        for entry in entries:
+            script_name = entry.script_name[:28] + '..' if len(entry.script_name) > 30 else entry.script_name
+            model = (entry.model or 'default')[:18]
+            time_str = f"{entry.processing_time:.1f}s" if entry.processing_time else "-"
+            created = entry.created_at.strftime("%Y-%m-%d %H:%M") if entry.created_at else "-"
+
+            print(f"{entry.id:<6} {script_name:<30} {entry.provider:<12} {model:<20} "
+                  f"{entry.scene_count or '-':<6} {entry.tcc_count or '-':<5} {time_str:<10} {created:<20}")
+
+        print("-"*100)
+        print(f"共 {total} 条记录")
+
+        # Print stats
+        stats = cache.get_stats()
+        print(f"\n📊 统计: 命中 {stats.total_hits} | 未命中 {stats.total_misses} | "
+              f"命中率 {stats.hit_rate*100:.1f}%")
+        print("="*100 + "\n")
+
+    except Exception as e:
+        logger.error(f"Failed to list cache: {e}")
+        sys.exit(1)
+
+
+def cmd_cache_stats(args):
+    """Show cache statistics."""
+    try:
+        cache = CacheManager()
+        stats = cache.get_stats()
+
+        print("\n" + "="*60)
+        print("📊 CACHE STATISTICS")
+        print("="*60)
+
+        print(f"\n总记录数:      {stats.total_entries}")
+        print(f"缓存命中:      {stats.total_hits}")
+        print(f"缓存未命中:    {stats.total_misses}")
+        print(f"命中率:        {stats.hit_rate*100:.2f}%")
+        print(f"数据库大小:    {stats.cache_size_bytes / 1024:.1f} KB")
+
+        if stats.oldest_entry:
+            print(f"\n最早记录:      {stats.oldest_entry.strftime('%Y-%m-%d %H:%M:%S')}")
+        if stats.newest_entry:
+            print(f"最新记录:      {stats.newest_entry.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        if stats.entries_by_provider:
+            print(f"\n按提供商:")
+            for provider, count in stats.entries_by_provider.items():
+                print(f"  - {provider}: {count}")
+
+        if stats.entries_by_model:
+            print(f"\n按模型:")
+            for model, count in stats.entries_by_model.items():
+                print(f"  - {model}: {count}")
+
+        print("\n" + "="*60 + "\n")
+
+    except Exception as e:
+        logger.error(f"Failed to get cache stats: {e}")
+        sys.exit(1)
+
+
+def cmd_cache_cleanup(args):
+    """Clean up expired cache entries."""
+    try:
+        cache = CacheManager()
+        removed = cache.cleanup_expired()
+
+        print(f"\n✅ 清理完成，共删除 {removed} 条过期记录\n")
+
+    except Exception as e:
+        logger.error(f"Failed to cleanup cache: {e}")
+        sys.exit(1)
+
+
+def cmd_cache_clear(args):
+    """Clear all cache entries."""
+    if not args.force:
+        confirm = input("⚠️  确定要清空所有缓存吗？此操作不可恢复！(输入 'yes' 确认): ")
+        if confirm.lower() != 'yes':
+            print("已取消操作")
+            return
+
+    try:
+        cache = CacheManager()
+        removed = cache.clear_all()
+
+        print(f"\n✅ 已清空所有缓存，共删除 {removed} 条记录\n")
+
+    except Exception as e:
+        logger.error(f"Failed to clear cache: {e}")
+        sys.exit(1)
+
+
+def cmd_cache_delete(args):
+    """Delete a specific cache entry."""
+    try:
+        cache = CacheManager()
+
+        if args.id:
+            success = cache.delete(args.id)
+            if success:
+                print(f"\n✅ 已删除缓存记录 #{args.id}\n")
+            else:
+                print(f"\n⚠️  未找到记录 #{args.id}\n")
+        elif args.hash:
+            count = cache.delete_by_hash(args.hash)
+            print(f"\n✅ 已删除 {count} 条哈希为 {args.hash[:16]}... 的记录\n")
+
+    except Exception as e:
+        logger.error(f"Failed to delete cache entry: {e}")
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -395,11 +536,47 @@ def main():
     parser_abtest.add_argument('--output', '-o', help='Output file for detailed results')
     parser_abtest.set_defaults(func=cmd_ab_test)
 
+    # Cache command (with subcommands)
+    parser_cache = subparsers.add_parser('cache', help='Cache management commands')
+    cache_subparsers = parser_cache.add_subparsers(dest='cache_command', help='Cache subcommands')
+
+    # cache list
+    parser_cache_list = cache_subparsers.add_parser('list', help='List cached entries')
+    parser_cache_list.add_argument('--limit', '-n', type=int, default=20, help='Max entries to show')
+    parser_cache_list.add_argument('--search', '-s', help='Search by script name')
+    parser_cache_list.add_argument('--provider', '-p', help='Filter by provider')
+    parser_cache_list.add_argument('--model', '-m', help='Filter by model')
+    parser_cache_list.set_defaults(func=cmd_cache_list)
+
+    # cache stats
+    parser_cache_stats = cache_subparsers.add_parser('stats', help='Show cache statistics')
+    parser_cache_stats.set_defaults(func=cmd_cache_stats)
+
+    # cache cleanup
+    parser_cache_cleanup = cache_subparsers.add_parser('cleanup', help='Remove expired entries')
+    parser_cache_cleanup.set_defaults(func=cmd_cache_cleanup)
+
+    # cache clear
+    parser_cache_clear = cache_subparsers.add_parser('clear', help='Clear all cache entries')
+    parser_cache_clear.add_argument('--force', '-f', action='store_true', help='Skip confirmation')
+    parser_cache_clear.set_defaults(func=cmd_cache_clear)
+
+    # cache delete
+    parser_cache_delete = cache_subparsers.add_parser('delete', help='Delete specific entry')
+    parser_cache_delete.add_argument('--id', type=int, help='Entry ID to delete')
+    parser_cache_delete.add_argument('--hash', help='Content hash to delete (all matching entries)')
+    parser_cache_delete.set_defaults(func=cmd_cache_delete)
+
     # Parse and execute
     args = parser.parse_args()
 
     if not args.command:
         parser.print_help()
+        sys.exit(1)
+
+    # Handle cache command without subcommand
+    if args.command == 'cache' and not getattr(args, 'cache_command', None):
+        parser_cache.print_help()
         sys.exit(1)
 
     args.func(args)

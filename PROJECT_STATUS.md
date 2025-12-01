@@ -1,8 +1,8 @@
 # 项目开发进度与遗留问题
 
 **项目名称**: 剧本叙事结构分析系统 (Script Narrative Structure Analysis System)
-**当前版本**: v2.10.0
-**更新日期**: 2025-11-30
+**当前版本**: v2.11.0
+**更新日期**: 2025-12-01
 **状态**: ✅ 生产就绪 (Production Ready)
 
 ---
@@ -29,12 +29,13 @@
 | **Gemini Thinking 优化** | ✅ 完成 | 100% | **Session 14 新增** - 响应速度大幅提升 |
 | **完整报告 Tab** | ✅ 完成 | 100% | **Session 15 新增** - 集中展示所有分析内容 |
 | **Mermaid 关系图增强** | ✅ 完成 | 100% | **Session 15 新增** - TCC关系连接+图例 |
+| **分析结果持久化** | ✅ 完成 | 100% | **Session 16 新增** - SQLite 缓存 + 历史记录 |
 
 **总体完成度**: 100%
 
 ---
 
-## 📅 开发历程 (Session 1-15)
+## 📅 开发历程 (Session 1-16)
 
 ### Session 1-6: 基础功能开发 (2025-11-12 ~ 2025-11-13)
 - Web 界面开发 (2,310 行代码)
@@ -346,6 +347,113 @@
 - **Gemini 2.5 Pro**: 推理更强 (~2.5s/请求)，适合复杂分析
 - **Gemini 3 Pro**: 最新模型 (~4.5s/请求)，快速模式已启用
 
+### Session 16: 分析结果持久化 (2025-12-01) ✅ 完成
+**目标**: 实现分析结果的 SQLite 持久化缓存，避免重复 LLM 调用，提供历史记录查看功能
+
+**背景**:
+- 当前分析结果存储在内存中，服务重启后丢失
+- 每次分析都需要重新调用 LLM API，耗时且费钱
+- 用户无法查看历史分析记录
+
+**实现内容**:
+
+1. **数据库模块** (`src/db/`)
+   - `models.py`: SQLite 表定义，`AnalysisCache` 和 `CacheStats` 数据类
+   - `cache.py`: `CacheManager` 类，提供缓存 CRUD 操作
+   - `cleanup.py`: 过期记录自动清理调度器
+   - 特性: SHA256 内容哈希、90天过期、命中率统计
+
+2. **Web 应用集成** (`src/web/app.py`)
+   - 分析前查询缓存，命中则直接返回
+   - 分析后自动存储结果
+   - 新增 API 端点:
+     - `GET /api/cache/stats` - 缓存统计
+     - `GET /api/history` - 历史记录列表 (分页、搜索、过滤)
+     - `GET /api/history/{id}` - 单条记录详情
+     - `DELETE /api/history/{id}` - 删除记录
+     - `POST /api/cache/cleanup` - 清理过期记录
+     - `GET /history` - 历史记录页面
+
+3. **历史记录页面** (`templates/history.html`)
+   - 缓存统计卡片 (总记录、命中率、命中/未命中数)
+   - 搜索和过滤 (剧本名称、提供商、模型)
+   - 分页表格展示历史记录
+   - 查看详情模态框
+   - 删除和清理功能
+
+4. **CLI 缓存命令** (`src/cli.py`)
+   ```bash
+   python -m src.cli cache list              # 列出缓存记录
+   python -m src.cli cache stats             # 查看缓存统计
+   python -m src.cli cache cleanup           # 清理过期记录
+   python -m src.cli cache clear             # 清空所有缓存
+   python -m src.cli cache delete <id>       # 删除指定记录
+   python -m src.cli analyze script.json --no-cache  # 忽略缓存强制分析
+   ```
+
+5. **单元测试** (`tests/test_cache.py`)
+   - 31 个测试用例，覆盖所有功能
+   - 测试 CRUD 操作、分页、过滤、统计、过期清理等
+
+**新增文件**:
+- `src/db/__init__.py` - 模块入口
+- `src/db/models.py` - 数据模型和表定义 (~210 行)
+- `src/db/cache.py` - 缓存管理器 (~475 行)
+- `src/db/cleanup.py` - 清理调度器 (~60 行)
+- `templates/history.html` - 历史记录页面 (~475 行)
+- `tests/test_cache.py` - 单元测试 (~400 行)
+
+**修改文件**:
+- `src/web/app.py` - 缓存集成和 API 端点
+- `src/cli.py` - CLI 缓存子命令
+- `templates/base.html` - 导航栏添加历史记录入口
+- `scripts/run_web_server.sh` - 修复 PYTHONPATH 设置
+
+**预期效果**:
+
+| 指标 | 首次分析 | 缓存命中 |
+|------|----------|----------|
+| 响应时间 | 60-180秒 | <1秒 |
+| API 调用 | 15-75次 | 0次 |
+| API 成本 | $0.05-0.20 | $0 |
+
+**测试结果**:
+- 单元测试: 31/31 通过 (100%)
+- 全量测试: 100/100 通过 (4 跳过)
+- API 验证: `/api/cache/stats`, `/api/history` 正常工作
+- CLI 验证: `cache stats`, `cache list` 正常工作
+
+**端到端验证** (2025-12-01):
+| 测试项 | 状态 | 说明 |
+|--------|------|------|
+| 缓存 MISS | ✅ | 首次分析触发 LLM 调用，耗时 211 秒 |
+| 缓存保存 | ✅ | 三阶段全部成功后自动保存 |
+| 缓存 HIT | ✅ | 第二次上传立即返回，耗时 ~10 毫秒 |
+| 缓存统计 | ✅ | 命中率 75%，准确统计 |
+| 历史记录 | ✅ | 缓存条目可在 `/history` 页面查看 |
+
+**修复的问题**:
+
+1. **缓存保存逻辑** (`src/web/app.py:936-967`)
+   - 问题: 即使 Stage 3 失败，不完整结果也会被缓存
+   - 修复: 仅在三阶段全部完成时保存
+   - 添加: 不完整结果的警告日志
+
+2. **缓存命中/未命中日志** (`src/db/cache.py:116-144`)
+   - 问题: 不完整条目被计入缓存命中
+   - 改进: 区分 "Cache HIT (complete)" 和 "Cache HIT (incomplete, ignoring)"
+   - 不完整条目正确计入未命中统计
+
+3. **change_type 验证** (`prompts/schemas.py:291-308`)
+   - 问题: LLM 返回无效值 ('none', 'N/A', 'skip') 导致验证失败
+   - 修复: 添加 `normalize_change_type` 验证器，自动规范化为有效值
+
+**性能对比**:
+| 场景 | 耗时 | 加速比 |
+|------|------|--------|
+| 首次分析 (缓存 MISS) | 211 秒 | 基准 |
+| 重复分析 (缓存 HIT) | ~10 毫秒 | **21,000x** |
+
 ---
 
 ## ✅ 已完成功能清单
@@ -381,8 +489,9 @@
 - [x] 环境变量配置 (.env)
 - [x] LangSmith 可观测性
 - [x] A/B 测试框架
-- [x] 单元测试 (44/44 通过)
+- [x] 单元测试 (100/100 通过, 4 跳过)
 - [x] 综合文档 (120KB+ across 15+ files)
+- [x] **分析结果缓存**: SQLite 持久化 + 历史记录 (**Session 16 新增**)
 
 ---
 
@@ -511,212 +620,13 @@
 
 ---
 
-## 🚀 待开发功能：分析结果持久化 (Session 16 计划)
-
-### 需求背景
-当前分析结果存储在内存中，服务重启后丢失。每次分析都需要重新调用 LLM API，耗时且费钱。
-
-**目标**：
-- 缓存已分析的剧本，相同剧本 + 相同模型不需要重复调用 LLM
-- 持久化存储，服务重启后数据仍在
-- 提供历史分析记录查看功能
-
-### 技术方案
-
-#### 1. 存储方案：SQLite
-- 零配置，Docker 容器内直接使用
-- 单文件存储 (`/data/analysis_cache.db`)，备份/迁移方便
-- Python 标准库自带，无额外依赖
-
-#### 2. 数据模型设计
-
-```sql
-CREATE TABLE analysis_cache (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    content_hash    TEXT NOT NULL,           -- 剧本内容 SHA256 哈希
-    script_name     TEXT NOT NULL,           -- 剧本文件名
-    provider        TEXT NOT NULL,           -- LLM 提供商 (deepseek/gemini/claude)
-    model           TEXT NOT NULL,           -- 模型版本 (gemini-2.5-flash 等)
-
-    -- 解析结果
-    parsed_script   TEXT,                    -- TXT 解析后的 JSON
-
-    -- 三阶段分析结果
-    stage1_result   TEXT,                    -- Discoverer 输出 (JSON)
-    stage2_result   TEXT,                    -- Auditor 输出 (JSON)
-    stage3_result   TEXT,                    -- Modifier 输出 (JSON)
-
-    -- 元数据
-    scene_count     INTEGER,                 -- 场景数量
-    tcc_count       INTEGER,                 -- 识别的 TCC 数量
-    processing_time REAL,                    -- 处理耗时 (秒)
-    api_calls       INTEGER,                 -- API 调用次数
-
-    -- 时间戳
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at      DATETIME,                -- 过期时间 (created_at + 90天)
-
-    -- 唯一约束：相同内容 + 相同模型 = 唯一记录
-    UNIQUE(content_hash, provider, model)
-);
-
--- 索引优化查询性能
-CREATE INDEX idx_content_hash ON analysis_cache(content_hash);
-CREATE INDEX idx_expires_at ON analysis_cache(expires_at);
-CREATE INDEX idx_script_name ON analysis_cache(script_name);
-```
-
-#### 3. 缓存策略
-
-```
-用户上传剧本
-     │
-     ▼
-计算内容哈希 (SHA256)
-     │
-     ▼
-查询: SELECT * FROM analysis_cache
-      WHERE content_hash = ?
-        AND provider = ?
-        AND model = ?
-        AND expires_at > NOW()
-     │
-     ├─ 命中 → 直接返回缓存结果 (毫秒级)
-     │         显示 "⚡ 已从缓存加载" 标识
-     │
-     └─ 未命中 → 调用 LLM API 分析
-                  │
-                  ▼
-               INSERT OR REPLACE 存储结果
-               设置 expires_at = NOW() + 90天
-                  │
-                  ▼
-               返回分析结果
-```
-
-#### 4. 缓存配置
-
-| 配置项 | 值 | 说明 |
-|--------|-----|------|
-| 缓存 Key | `SHA256(剧本内容) + provider + model` | 相同内容+不同模型=不同缓存 |
-| 过期时间 | 90 天 | 超过 90 天自动清理 |
-| 数据库路径 | `/data/analysis_cache.db` | Docker volume 持久化 |
-| 自动清理 | 每日凌晨 | 清理过期记录 |
-
-#### 5. 实现模块
-
-**新增文件**：
-```
-src/db/
-├── __init__.py
-├── models.py          # SQLite 表定义
-├── cache.py           # 缓存查询/存储逻辑
-└── cleanup.py         # 过期记录清理
-```
-
-**修改文件**：
-```
-src/web/app.py         # 分析前查缓存，分析后存缓存
-templates/index.html   # 添加"历史记录"入口
-templates/history.html # 新增: 历史分析记录页面
-static/js/history.js   # 新增: 历史记录页面逻辑
-```
-
-#### 6. 历史记录页面功能
-
-- **列表展示**：显示所有缓存的分析记录
-  - 剧本名称、场景数、TCC 数量
-  - 使用的模型、分析时间
-  - 过期倒计时
-- **快速查看**：点击直接查看历史分析结果
-- **重新分析**：强制使用新 API 调用覆盖缓存
-- **删除记录**：手动删除不需要的缓存
-- **搜索过滤**：按剧本名称、模型筛选
-
-#### 7. CLI 增强
-
-```bash
-# 强制重新分析 (忽略缓存)
-python -m src.cli analyze script.json --no-cache
-
-# 查看缓存列表
-python -m src.cli cache list
-
-# 清理过期缓存
-python -m src.cli cache cleanup
-
-# 清空所有缓存
-python -m src.cli cache clear
-```
-
-#### 8. API 端点
-
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/history` | GET | 获取历史分析列表 |
-| `/api/history/{id}` | GET | 获取单条历史记录详情 |
-| `/api/history/{id}` | DELETE | 删除单条记录 |
-| `/api/cache/stats` | GET | 缓存统计 (总数、命中率等) |
-| `/history` | GET | 历史记录页面 (HTML) |
-
-#### 9. Docker 配置更新
-
-```yaml
-# docker-compose.yml
-services:
-  web:
-    volumes:
-      - ./data:/data    # 持久化数据库文件
-    environment:
-      - DATABASE_PATH=/data/analysis_cache.db
-```
-
-#### 10. 预期效果
-
-| 指标 | 首次分析 | 缓存命中 |
-|------|----------|----------|
-| 响应时间 | 60-180秒 | <1秒 |
-| API 调用 | 15-75次 | 0次 |
-| API 成本 | $0.05-0.20 | $0 |
-
-### 开发任务清单
-
-- [ ] **Phase 1: 数据库基础** (预计 2h)
-  - [ ] 创建 `src/db/` 模块
-  - [ ] 实现 SQLite 表创建和连接
-  - [ ] 实现缓存存储和查询函数
-
-- [ ] **Phase 2: 缓存集成** (预计 3h)
-  - [ ] 修改 `app.py` 集成缓存逻辑
-  - [ ] 实现内容哈希计算
-  - [ ] 添加缓存命中/未命中日志
-
-- [ ] **Phase 3: 历史记录页面** (预计 3h)
-  - [ ] 创建 `/history` 页面
-  - [ ] 实现历史记录 API
-  - [ ] 添加搜索和过滤功能
-
-- [ ] **Phase 4: CLI 和清理** (预计 2h)
-  - [ ] 添加 CLI 缓存命令
-  - [ ] 实现自动过期清理
-  - [ ] 更新 Docker 配置
-
-- [ ] **Phase 5: 测试和文档** (预计 2h)
-  - [ ] 编写单元测试
-  - [ ] 更新文档
-  - [ ] 端到端测试
-
-**总预计工时**: 12 小时
-
----
-
 ## 🔮 未来改进建议
 
 ### 短期 (1-2 周)
 1. [ ] 添加单场景剧本的友好错误提示
 2. [ ] 优化 Mermaid 渲染兼容性
 3. [ ] 统一错误信息为中文
-4. [x] **分析结果持久化** (Session 16 计划 - 见上方详细方案)
+4. [x] ~~**分析结果持久化**~~ (Session 16 已完成 ✅)
 
 ### 中期 (1-2 月)
 1. [ ] 实现 LLM 调用批处理以降低成本
@@ -745,7 +655,9 @@ services:
 | 文件 | 说明 | 关键行 |
 |------|------|--------|
 | `src/pipeline.py` | 分析流水线 | 288-303: Gemini 工厂, 中间件+验证集成 |
-| `src/web/app.py` | Web 后端 | 122-131: 提供商配置 |
+| `src/web/app.py` | Web 后端 | 122-131: 提供商配置, 缓存集成 |
+| `src/db/cache.py` | 缓存管理器 | **Session 16 新增** |
+| `src/db/models.py` | 数据模型 | **Session 16 新增** |
 | `src/parser/txt_parser.py` | TXT 解析器 | 表演提示/视觉动作提取 |
 | `src/parser/llm_enhancer.py` | LLM 增强器 | - |
 | `prompts/stage1_discoverer.md` | TCC 识别提示词 (v2.6.0-AAP) | Section 6: AAP |
@@ -767,6 +679,7 @@ services:
 | `test_gemini_api.py` | Gemini API 测试 |
 | `tests/test_schemas.py` | Schema 单元测试 |
 | `tests/test_golden_dataset.py` | 集成测试 |
+| `tests/test_cache.py` | 缓存模块单元测试 (31 tests) **Session 16 新增** |
 
 ---
 
@@ -775,8 +688,9 @@ services:
 ### 单元测试
 ```bash
 pytest tests/ -v
-# Result: 44 passed, 3 skipped (LLM integration tests)
+# Result: 100 passed, 4 skipped (LLM integration tests)
 # Status: ✅ 100% pass rate
+# 包括: test_cache.py (31 tests), test_schemas.py, test_golden_dataset.py 等
 ```
 
 ### 端到端测试
@@ -827,6 +741,47 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 ---
 
 ## 📝 变更日志
+
+### v2.11.0 (2025-12-01) - Session 16 ✅ 完成
+#### 分析结果持久化
+- 🆕 **SQLite 缓存系统**: 新增 `src/db/` 模块，实现分析结果持久化存储
+- 🆕 **CacheManager 类**: 完整的缓存 CRUD 操作，支持 SHA256 内容哈希
+- 🆕 **历史记录页面**: 新增 `/history` 页面，展示所有缓存的分析记录
+- 🆕 **缓存统计**: 命中率、总记录数、按提供商/模型分组统计
+- 🆕 **CLI 缓存命令**: `cache list/stats/cleanup/clear/delete` 子命令
+- 🆕 **自动过期清理**: 90 天过期策略，支持手动和自动清理
+- 🆕 **缓存命中提示**: 分析时显示缓存命中/未命中状态
+
+#### 端到端测试修复
+- 🔧 **缓存保存逻辑**: 仅在三阶段全部成功后保存，防止缓存不完整结果
+- 🔧 **缓存命中/未命中统计**: 区分完整/不完整条目，准确统计命中率
+- 🔧 **change_type 验证器**: 处理 LLM 返回的无效值 ('none', 'N/A', 'skip')
+- 🔧 **日志改进**: 详细区分 "Cache HIT (complete)" 和 "Cache HIT (incomplete, ignoring)"
+
+#### API 端点
+- 🆕 `GET /api/cache/stats` - 缓存统计信息
+- 🆕 `GET /api/history` - 历史记录列表 (分页、搜索、过滤)
+- 🆕 `GET /api/history/{id}` - 单条记录详情
+- 🆕 `DELETE /api/history/{id}` - 删除记录
+- 🆕 `POST /api/cache/cleanup` - 清理过期记录
+
+#### 文件变更
+- 📄 新增 `src/db/__init__.py` - 模块入口
+- 📄 新增 `src/db/models.py` - SQLite 表定义和数据类
+- 📄 新增 `src/db/cache.py` - CacheManager 实现 (~475 行)
+- 📄 新增 `src/db/cleanup.py` - 过期清理调度器
+- 📄 新增 `templates/history.html` - 历史记录页面 (~475 行)
+- 📄 新增 `tests/test_cache.py` - 单元测试 (31 tests)
+- 📄 更新 `src/web/app.py` - 缓存集成和 API 端点
+- 📄 更新 `src/cli.py` - CLI 缓存子命令
+- 📄 更新 `templates/base.html` - 导航栏历史记录入口
+
+#### 性能提升
+| 指标 | 首次分析 | 缓存命中 | 提升 |
+|------|----------|----------|------|
+| 响应时间 | 60-180秒 | <1秒 | **99%+** |
+| API 调用 | 15-75次 | 0次 | **100%** |
+| API 成本 | $0.05-0.20 | $0 | **100%** |
 
 ### v2.10.0 (2025-11-30) - Session 15 ✅ 完成
 #### TXT 报告导出
@@ -950,6 +905,6 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ---
 
-**文档版本**: 1.6
+**文档版本**: 1.8
 **最后更新**: 2025-12-01
 **维护者**: AI Assistant (Claude Code)

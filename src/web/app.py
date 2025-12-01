@@ -23,7 +23,9 @@ from prompts.schemas import Script
 from src.pipeline import run_pipeline
 from src.exporters import MarkdownExporter, TXTExporter
 from src.version import __version__, get_version_info, get_git_info
+from src.db import CacheManager
 import logging
+import time
 
 # Setup logging
 logging.basicConfig(
@@ -59,6 +61,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Store active analysis jobs
 active_jobs: Dict[str, dict] = {}
+
+# Initialize cache manager
+cache_manager = CacheManager()
 
 # WebSocket manager for progress updates
 class ConnectionManager:
@@ -123,6 +128,103 @@ async def health_check():
         "build_date": version_info["build_date"],
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+# ============================================================================
+# Cache API Endpoints (Session 16)
+# ============================================================================
+
+@app.get("/api/cache/stats")
+async def get_cache_stats():
+    """Get cache statistics including hit rate, total entries, etc."""
+    stats = cache_manager.get_stats()
+    return stats.to_dict()
+
+
+@app.get("/api/history")
+async def list_history(
+    limit: int = 20,
+    offset: int = 0,
+    search: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None
+):
+    """
+    List cached analysis history with pagination and filtering.
+
+    Args:
+        limit: Maximum entries to return (default 20)
+        offset: Number of entries to skip
+        search: Search term for script name
+        provider: Filter by LLM provider
+        model: Filter by model name
+
+    Returns:
+        List of cache entries with pagination info
+    """
+    entries, total = cache_manager.list_all(
+        limit=limit,
+        offset=offset,
+        search=search,
+        provider=provider,
+        model=model
+    )
+
+    return {
+        "entries": [entry.to_dict() for entry in entries],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(entries) < total
+    }
+
+
+@app.get("/api/history/{cache_id}")
+async def get_history_entry(cache_id: int):
+    """Get a specific cache entry by ID."""
+    entry = cache_manager.get_by_id(cache_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Cache entry not found")
+
+    # Parse JSON fields back to dicts for response
+    result = entry.to_dict()
+    if entry.stage1_result:
+        result["stage1_result"] = json.loads(entry.stage1_result)
+    if entry.stage2_result:
+        result["stage2_result"] = json.loads(entry.stage2_result)
+    if entry.stage3_result:
+        result["stage3_result"] = json.loads(entry.stage3_result)
+    if entry.parsed_script:
+        result["parsed_script"] = json.loads(entry.parsed_script)
+
+    return result
+
+
+@app.delete("/api/history/{cache_id}")
+async def delete_history_entry(cache_id: int):
+    """Delete a specific cache entry."""
+    success = cache_manager.delete(cache_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Cache entry not found")
+    return {"status": "deleted", "id": cache_id}
+
+
+@app.post("/api/cache/cleanup")
+async def cleanup_expired_cache():
+    """Remove expired cache entries."""
+    removed = cache_manager.cleanup_expired()
+    return {"status": "success", "removed_count": removed}
+
+
+@app.get("/history", response_class=HTMLResponse)
+async def history_page(request: Request):
+    """Render history page for viewing cached analyses."""
+    version_info = get_version_info()
+    return templates.TemplateResponse("history.html", {
+        "request": request,
+        "version": STATIC_VERSION,
+        "version_info": version_info
+    })
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -194,8 +296,12 @@ async def upload_script(
             "stage": "queued"
         }
 
-        # Start analysis in background
-        asyncio.create_task(run_analysis_job(job_id, script, provider, model, export_markdown))
+        # Start analysis in background (pass content for cache hash)
+        script_content = content.decode('utf-8')
+        asyncio.create_task(run_analysis_job(
+            job_id, script, provider, model, export_markdown,
+            script_content=script_content
+        ))
 
         logger.info(f"Analysis job created: {job_id} for {file.filename}")
 
@@ -352,8 +458,20 @@ async def start_analysis_from_parsed(job_id: str):
     job["stage"] = "queued"
     job["progress"] = 0
 
+    # Read original file content for cache hash
+    script_content = None
+    if "file_path" in job:
+        try:
+            with open(job["file_path"], 'r', encoding='utf-8') as f:
+                script_content = f.read()
+        except Exception as e:
+            logger.warning(f"Could not read original file for cache: {e}")
+
     # Start analysis in background
-    asyncio.create_task(run_analysis_job(job_id, script, provider, model, export_markdown))
+    asyncio.create_task(run_analysis_job(
+        job_id, script, provider, model, export_markdown,
+        script_content=script_content
+    ))
 
     logger.info(f"Starting analysis for parsed script: {job_id}")
 
@@ -644,7 +762,9 @@ async def run_analysis_job(
     script: Script,
     provider: str,
     model: Optional[str],
-    export_markdown: bool
+    export_markdown: bool,
+    no_cache: bool = False,
+    script_content: Optional[str] = None
 ):
     """
     Run analysis pipeline in background and update job status.
@@ -655,8 +775,65 @@ async def run_analysis_job(
         provider: LLM provider
         model: Optional model name
         export_markdown: Whether to export Markdown report
+        no_cache: If True, skip cache lookup and force fresh analysis
+        script_content: Original script content for cache hash computation
     """
+    start_time = time.time()
+    api_calls = 0
+    from_cache = False
+
     try:
+        # Compute content hash for cache lookup
+        content_hash = None
+        effective_model = model or "default"
+
+        if script_content:
+            content_hash = cache_manager.compute_hash(script_content)
+        else:
+            # Fallback: hash the JSON representation
+            content_hash = cache_manager.compute_hash(json.dumps(script.model_dump(), ensure_ascii=False, sort_keys=True))
+
+        # Check cache if not disabled
+        if not no_cache and content_hash:
+            await manager.send_progress(job_id, {
+                "type": "progress",
+                "stage": "cache_check",
+                "progress": 5,
+                "message": "Checking cache..."
+            })
+
+            cached = cache_manager.get(content_hash, provider, effective_model)
+            if cached and cached.stage1_result and cached.stage2_result and cached.stage3_result:
+                logger.info(f"Cache HIT for job {job_id}")
+                from_cache = True
+
+                # Restore results from cache
+                active_jobs[job_id]["status"] = "completed"
+                active_jobs[job_id]["progress"] = 100
+                active_jobs[job_id]["completed_at"] = datetime.now().isoformat()
+                active_jobs[job_id]["from_cache"] = True
+                active_jobs[job_id]["cache_id"] = cached.id
+                active_jobs[job_id]["result"] = {
+                    "discoverer_output": json.loads(cached.stage1_result),
+                    "auditor_output": json.loads(cached.stage2_result),
+                    "modifier_output": json.loads(cached.stage3_result),
+                    "errors": [],
+                    "retry_count": 0,
+                    "metrics": {"from_cache": True, "cache_id": cached.id}
+                }
+
+                await manager.send_progress(job_id, {
+                    "type": "complete",
+                    "progress": 100,
+                    "message": "Analysis loaded from cache!",
+                    "result_url": f"/results/{job_id}",
+                    "from_cache": True
+                })
+
+                logger.info(f"Job {job_id} completed from cache (id={cached.id})")
+                return
+
+        # No cache hit - run fresh analysis
         # Update status to running
         active_jobs[job_id]["status"] = "running"
         active_jobs[job_id]["stage"] = "stage1"
@@ -741,11 +918,13 @@ async def run_analysis_job(
         except Exception as e:
             logger.error(f"Failed to generate TXT report: {e}")
 
-        # Analysis complete
-        active_jobs[job_id]["status"] = "completed"
-        active_jobs[job_id]["progress"] = 100
-        active_jobs[job_id]["completed_at"] = datetime.now().isoformat()
-        active_jobs[job_id]["result"] = {
+        # Calculate processing time and API calls
+        processing_time = time.time() - start_time
+        metrics = final_state.get("_metrics", {})
+        api_calls = metrics.get("total_llm_calls", 3)  # Default to 3 (one per stage)
+
+        # Build result dict
+        result_dict = {
             "discoverer_output": final_state["discoverer_output"].model_dump() if final_state["discoverer_output"] else None,
             "auditor_output": final_state["auditor_output"].model_dump() if final_state["auditor_output"] else None,
             "modifier_output": final_state["modifier_output"].model_dump() if final_state["modifier_output"] else None,
@@ -754,14 +933,52 @@ async def run_analysis_job(
             "metrics": final_state.get("_metrics", {})
         }
 
+        # Save to cache (only if all three stages completed successfully)
+        all_stages_completed = (
+            result_dict["discoverer_output"] is not None and
+            result_dict["auditor_output"] is not None and
+            result_dict["modifier_output"] is not None
+        )
+        if content_hash and all_stages_completed:
+            try:
+                tcc_count = len(final_state["discoverer_output"].tccs) if final_state["discoverer_output"] else 0
+                cache_id = cache_manager.set(
+                    content_hash=content_hash,
+                    script_name=script_name,
+                    provider=provider,
+                    model=effective_model,
+                    parsed_script=script.model_dump(),
+                    stage1_result=result_dict["discoverer_output"],
+                    stage2_result=result_dict["auditor_output"],
+                    stage3_result=result_dict["modifier_output"],
+                    scene_count=len(script.scenes),
+                    tcc_count=tcc_count,
+                    processing_time=processing_time,
+                    api_calls=api_calls,
+                )
+                active_jobs[job_id]["cache_id"] = cache_id
+                logger.info(f"Analysis cached: id={cache_id}, hash={content_hash[:8]}...")
+            except Exception as e:
+                logger.error(f"Failed to cache analysis result: {e}")
+        elif content_hash and not all_stages_completed:
+            logger.warning(f"Analysis not cached: incomplete results (Stage 1: {result_dict['discoverer_output'] is not None}, Stage 2: {result_dict['auditor_output'] is not None}, Stage 3: {result_dict['modifier_output'] is not None})")
+
+        # Analysis complete
+        active_jobs[job_id]["status"] = "completed"
+        active_jobs[job_id]["progress"] = 100
+        active_jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        active_jobs[job_id]["from_cache"] = False
+        active_jobs[job_id]["result"] = result_dict
+
         await manager.send_progress(job_id, {
             "type": "complete",
             "progress": 100,
             "message": "Analysis completed successfully!",
-            "result_url": f"/results/{job_id}"
+            "result_url": f"/results/{job_id}",
+            "from_cache": False
         })
 
-        logger.info(f"Job {job_id} completed successfully")
+        logger.info(f"Job {job_id} completed successfully in {processing_time:.2f}s")
 
     except Exception as e:
         logger.error(f"Job {job_id} failed: {e}", exc_info=True)

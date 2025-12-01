@@ -39,5 +39,5 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-# Run the web server
-python -m uvicorn src.web.app:app --reload --host 0.0.0.0 --port 8000
+# Run the web server (set PYTHONPATH to project root)
+PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)" python -m uvicorn src.web.app:app --reload --host 0.0.0.0 --port 8000
