@@ -511,16 +511,216 @@
 
 ---
 
+## 🚀 待开发功能：分析结果持久化 (Session 16 计划)
+
+### 需求背景
+当前分析结果存储在内存中，服务重启后丢失。每次分析都需要重新调用 LLM API，耗时且费钱。
+
+**目标**：
+- 缓存已分析的剧本，相同剧本 + 相同模型不需要重复调用 LLM
+- 持久化存储，服务重启后数据仍在
+- 提供历史分析记录查看功能
+
+### 技术方案
+
+#### 1. 存储方案：SQLite
+- 零配置，Docker 容器内直接使用
+- 单文件存储 (`/data/analysis_cache.db`)，备份/迁移方便
+- Python 标准库自带，无额外依赖
+
+#### 2. 数据模型设计
+
+```sql
+CREATE TABLE analysis_cache (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_hash    TEXT NOT NULL,           -- 剧本内容 SHA256 哈希
+    script_name     TEXT NOT NULL,           -- 剧本文件名
+    provider        TEXT NOT NULL,           -- LLM 提供商 (deepseek/gemini/claude)
+    model           TEXT NOT NULL,           -- 模型版本 (gemini-2.5-flash 等)
+
+    -- 解析结果
+    parsed_script   TEXT,                    -- TXT 解析后的 JSON
+
+    -- 三阶段分析结果
+    stage1_result   TEXT,                    -- Discoverer 输出 (JSON)
+    stage2_result   TEXT,                    -- Auditor 输出 (JSON)
+    stage3_result   TEXT,                    -- Modifier 输出 (JSON)
+
+    -- 元数据
+    scene_count     INTEGER,                 -- 场景数量
+    tcc_count       INTEGER,                 -- 识别的 TCC 数量
+    processing_time REAL,                    -- 处理耗时 (秒)
+    api_calls       INTEGER,                 -- API 调用次数
+
+    -- 时间戳
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at      DATETIME,                -- 过期时间 (created_at + 90天)
+
+    -- 唯一约束：相同内容 + 相同模型 = 唯一记录
+    UNIQUE(content_hash, provider, model)
+);
+
+-- 索引优化查询性能
+CREATE INDEX idx_content_hash ON analysis_cache(content_hash);
+CREATE INDEX idx_expires_at ON analysis_cache(expires_at);
+CREATE INDEX idx_script_name ON analysis_cache(script_name);
+```
+
+#### 3. 缓存策略
+
+```
+用户上传剧本
+     │
+     ▼
+计算内容哈希 (SHA256)
+     │
+     ▼
+查询: SELECT * FROM analysis_cache
+      WHERE content_hash = ?
+        AND provider = ?
+        AND model = ?
+        AND expires_at > NOW()
+     │
+     ├─ 命中 → 直接返回缓存结果 (毫秒级)
+     │         显示 "⚡ 已从缓存加载" 标识
+     │
+     └─ 未命中 → 调用 LLM API 分析
+                  │
+                  ▼
+               INSERT OR REPLACE 存储结果
+               设置 expires_at = NOW() + 90天
+                  │
+                  ▼
+               返回分析结果
+```
+
+#### 4. 缓存配置
+
+| 配置项 | 值 | 说明 |
+|--------|-----|------|
+| 缓存 Key | `SHA256(剧本内容) + provider + model` | 相同内容+不同模型=不同缓存 |
+| 过期时间 | 90 天 | 超过 90 天自动清理 |
+| 数据库路径 | `/data/analysis_cache.db` | Docker volume 持久化 |
+| 自动清理 | 每日凌晨 | 清理过期记录 |
+
+#### 5. 实现模块
+
+**新增文件**：
+```
+src/db/
+├── __init__.py
+├── models.py          # SQLite 表定义
+├── cache.py           # 缓存查询/存储逻辑
+└── cleanup.py         # 过期记录清理
+```
+
+**修改文件**：
+```
+src/web/app.py         # 分析前查缓存，分析后存缓存
+templates/index.html   # 添加"历史记录"入口
+templates/history.html # 新增: 历史分析记录页面
+static/js/history.js   # 新增: 历史记录页面逻辑
+```
+
+#### 6. 历史记录页面功能
+
+- **列表展示**：显示所有缓存的分析记录
+  - 剧本名称、场景数、TCC 数量
+  - 使用的模型、分析时间
+  - 过期倒计时
+- **快速查看**：点击直接查看历史分析结果
+- **重新分析**：强制使用新 API 调用覆盖缓存
+- **删除记录**：手动删除不需要的缓存
+- **搜索过滤**：按剧本名称、模型筛选
+
+#### 7. CLI 增强
+
+```bash
+# 强制重新分析 (忽略缓存)
+python -m src.cli analyze script.json --no-cache
+
+# 查看缓存列表
+python -m src.cli cache list
+
+# 清理过期缓存
+python -m src.cli cache cleanup
+
+# 清空所有缓存
+python -m src.cli cache clear
+```
+
+#### 8. API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/history` | GET | 获取历史分析列表 |
+| `/api/history/{id}` | GET | 获取单条历史记录详情 |
+| `/api/history/{id}` | DELETE | 删除单条记录 |
+| `/api/cache/stats` | GET | 缓存统计 (总数、命中率等) |
+| `/history` | GET | 历史记录页面 (HTML) |
+
+#### 9. Docker 配置更新
+
+```yaml
+# docker-compose.yml
+services:
+  web:
+    volumes:
+      - ./data:/data    # 持久化数据库文件
+    environment:
+      - DATABASE_PATH=/data/analysis_cache.db
+```
+
+#### 10. 预期效果
+
+| 指标 | 首次分析 | 缓存命中 |
+|------|----------|----------|
+| 响应时间 | 60-180秒 | <1秒 |
+| API 调用 | 15-75次 | 0次 |
+| API 成本 | $0.05-0.20 | $0 |
+
+### 开发任务清单
+
+- [ ] **Phase 1: 数据库基础** (预计 2h)
+  - [ ] 创建 `src/db/` 模块
+  - [ ] 实现 SQLite 表创建和连接
+  - [ ] 实现缓存存储和查询函数
+
+- [ ] **Phase 2: 缓存集成** (预计 3h)
+  - [ ] 修改 `app.py` 集成缓存逻辑
+  - [ ] 实现内容哈希计算
+  - [ ] 添加缓存命中/未命中日志
+
+- [ ] **Phase 3: 历史记录页面** (预计 3h)
+  - [ ] 创建 `/history` 页面
+  - [ ] 实现历史记录 API
+  - [ ] 添加搜索和过滤功能
+
+- [ ] **Phase 4: CLI 和清理** (预计 2h)
+  - [ ] 添加 CLI 缓存命令
+  - [ ] 实现自动过期清理
+  - [ ] 更新 Docker 配置
+
+- [ ] **Phase 5: 测试和文档** (预计 2h)
+  - [ ] 编写单元测试
+  - [ ] 更新文档
+  - [ ] 端到端测试
+
+**总预计工时**: 12 小时
+
+---
+
 ## 🔮 未来改进建议
 
 ### 短期 (1-2 周)
 1. [ ] 添加单场景剧本的友好错误提示
 2. [ ] 优化 Mermaid 渲染兼容性
 3. [ ] 统一错误信息为中文
+4. [x] **分析结果持久化** (Session 16 计划 - 见上方详细方案)
 
 ### 中期 (1-2 月)
 1. [ ] 实现 LLM 调用批处理以降低成本
-2. [ ] 添加分析结果历史记录
+2. [x] ~~添加分析结果历史记录~~ (已纳入 Session 16)
 3. [ ] 支持多剧本批量分析
 4. [ ] 实现用户登录和项目管理
 
