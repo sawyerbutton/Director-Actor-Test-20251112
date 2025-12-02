@@ -1,8 +1,8 @@
 # 项目开发进度与遗留问题
 
 **项目名称**: 剧本叙事结构分析系统 (Script Narrative Structure Analysis System)
-**当前版本**: v2.11.0
-**更新日期**: 2025-12-01
+**当前版本**: v2.11.1
+**更新日期**: 2025-12-02
 **状态**: ✅ 生产就绪 (Production Ready)
 
 ---
@@ -30,12 +30,13 @@
 | **完整报告 Tab** | ✅ 完成 | 100% | **Session 15 新增** - 集中展示所有分析内容 |
 | **Mermaid 关系图增强** | ✅ 完成 | 100% | **Session 15 新增** - TCC关系连接+图例 |
 | **分析结果持久化** | ✅ 完成 | 100% | **Session 16 新增** - SQLite 缓存 + 历史记录 |
+| **历史记录详情优化** | ✅ 完成 | 100% | **Session 17 新增** - 详情弹窗可视化增强 |
 
 **总体完成度**: 100%
 
 ---
 
-## 📅 开发历程 (Session 1-16)
+## 📅 开发历程 (Session 1-17)
 
 ### Session 1-6: 基础功能开发 (2025-11-12 ~ 2025-11-13)
 - Web 界面开发 (2,310 行代码)
@@ -454,6 +455,59 @@
 | 首次分析 (缓存 MISS) | 211 秒 | 基准 |
 | 重复分析 (缓存 HIT) | ~10 毫秒 | **21,000x** |
 
+### Session 17: 历史记录详情弹窗优化 (2025-12-02) ✅ 完成
+**目标**: 优化历史记录页面的"查看详情"弹窗，提供更丰富的可视化展示
+
+**背景**:
+- 原有详情弹窗仅显示原始 JSON 数据，可读性差
+- 用户反馈"页面展示内容样式和内容都很少"
+- 需要与结果页面类似的可视化展示
+
+**实现内容**:
+
+1. **概览卡片区** (4 个统计卡片)
+   - 场景数 (蓝色边框)
+   - TCC 数 (黄色边框)
+   - 处理时间 (绿色边框)
+   - API 调用数 (青色边框)
+
+2. **基本信息区** (Flexbox 布局优化)
+   - 左侧: 记录 ID、内容哈希(截断显示)、提供商、模型
+   - 右侧: 创建时间、过期时间、缓存状态、脚本名称
+   - 样式优化: 使用 `d-flex align-items-center` 实现对齐
+   - 哈希值截断为 16 位 + `...`，悬停显示完整值
+
+3. **5 个 Tab 页**
+   | Tab | 功能 | 辅助函数 |
+   |-----|------|----------|
+   | TCC 识别 | TCC 卡片，置信度徽章，证据场景标签 | `renderTCCsContent()` |
+   | A/B/C 分级 | A线(黄)、B线(青)、C线(灰)卡片，评分和力量分析 | `renderRankingsContent()` |
+   | 场景列表 | 手风琴式展开，显示场景使命、角色、关键事件 | `renderScenesContent()` |
+   | 修改记录 | 验证统计卡片，修改日志列表 | `renderModificationsContent()` |
+   | 原始数据 | 折叠式 JSON 展示 (Stage 1/2/3) | 内联实现 |
+
+4. **辅助函数**
+   - `escapeHtml(text)` - XSS 防护
+   - `formatDate(dateStr)` - 日期格式化为中文
+
+**修改文件**:
+- `templates/history.html` - 重写 `renderDetailContent()` 函数 (+200 行)
+  - 新增 4 个辅助函数: `renderTCCsContent()`, `renderRankingsContent()`, `renderScenesContent()`, `renderModificationsContent()`
+  - 基本信息区从表格布局改为 Flexbox 布局
+
+**UI 组件使用**:
+- Bootstrap 5 Cards (统计卡片、信息卡片)
+- Bootstrap 5 Tabs (5 个标签页)
+- Bootstrap 5 Accordion (场景列表、原始数据)
+- Bootstrap 5 Badges (置信度、状态、线级别)
+- Bootstrap Icons (图标装饰)
+
+**测试验证**:
+- ✅ API 数据结构兼容性验证
+- ✅ 页面加载正常
+- ✅ JavaScript 函数完整嵌入
+- ✅ 所有 Tab 页渲染正确
+
 ---
 
 ## ✅ 已完成功能清单
@@ -742,6 +796,26 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ## 📝 变更日志
 
+### v2.11.1 (2025-12-02) - Session 17 ✅ 完成
+#### 历史记录详情弹窗优化
+- 🎨 **详情弹窗重构**: 从原始 JSON 展示升级为富可视化界面
+- 🆕 **概览卡片区**: 4 个统计卡片 (场景数、TCC数、处理时间、API调用)
+- 🆕 **基本信息区优化**: Flexbox 布局，哈希截断显示，新增脚本名称字段
+- 🆕 **5 个 Tab 页**: TCC识别、A/B/C分级、场景列表、修改记录、原始数据
+- 🆕 **TCC 可视化卡片**: 置信度徽章、超级目标、证据场景标签
+- 🆕 **A/B/C 分级展示**: 彩色边框区分 (A线黄、B线青、C线灰)
+- 🆕 **场景手风琴**: 展开显示场景使命、角色、关键事件
+- 🆕 **修改日志**: 验证统计卡片 + 修改状态徽章
+
+#### 辅助函数
+- 🆕 `renderTCCsContent()` - TCC 卡片渲染
+- 🆕 `renderRankingsContent()` - A/B/C 分级渲染
+- 🆕 `renderScenesContent()` - 场景列表渲染
+- 🆕 `renderModificationsContent()` - 修改记录渲染
+
+#### 文件变更
+- 📄 更新 `templates/history.html` - 重写 renderDetailContent (+200 行)
+
 ### v2.11.0 (2025-12-01) - Session 16 ✅ 完成
 #### 分析结果持久化
 - 🆕 **SQLite 缓存系统**: 新增 `src/db/` 模块，实现分析结果持久化存储
@@ -905,6 +979,6 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ---
 
-**文档版本**: 1.8
-**最后更新**: 2025-12-01
+**文档版本**: 1.9
+**最后更新**: 2025-12-02
 **维护者**: AI Assistant (Claude Code)

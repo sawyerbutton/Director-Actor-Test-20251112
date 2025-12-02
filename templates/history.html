@@ -328,51 +328,541 @@ async function viewDetail(id) {
     }
 }
 
-// Render detail content
+// Render detail content - Enhanced version with rich visualization
 function renderDetailContent(entry) {
     const stage1 = entry.stage1_result || {};
     const stage2 = entry.stage2_result || {};
     const stage3 = entry.stage3_result || {};
+    const parsedScript = entry.parsed_script || {};
 
-    return `
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <h6>基本信息</h6>
-                <table class="table table-sm">
-                    <tr><td>ID</td><td><code>${entry.id}</code></td></tr>
-                    <tr><td>内容哈希</td><td><code>${entry.content_hash}</code></td></tr>
-                    <tr><td>提供商</td><td>${entry.provider}</td></tr>
-                    <tr><td>模型</td><td>${entry.model || 'default'}</td></tr>
-                    <tr><td>场景数</td><td>${entry.scene_count || '-'}</td></tr>
-                    <tr><td>TCC数</td><td>${entry.tcc_count || '-'}</td></tr>
-                    <tr><td>处理时间</td><td>${entry.processing_time ? entry.processing_time.toFixed(2) + 's' : '-'}</td></tr>
-                    <tr><td>API调用次数</td><td>${entry.api_calls || '-'}</td></tr>
-                </table>
+    let html = '';
+
+    // ===== 概览卡片 =====
+    html += `
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card text-center h-100 border-primary">
+                    <div class="card-body">
+                        <i class="bi bi-film text-primary" style="font-size: 1.5rem;"></i>
+                        <h3 class="mb-0 mt-2">${entry.scene_count || 0}</h3>
+                        <small class="text-muted">场景数</small>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-6">
-                <h6>时间信息</h6>
-                <table class="table table-sm">
-                    <tr><td>创建时间</td><td>${formatDate(entry.created_at)}</td></tr>
-                    <tr><td>过期时间</td><td>${formatDate(entry.expires_at)}</td></tr>
-                </table>
+            <div class="col-md-3">
+                <div class="card text-center h-100 border-warning">
+                    <div class="card-body">
+                        <i class="bi bi-diagram-3 text-warning" style="font-size: 1.5rem;"></i>
+                        <h3 class="mb-0 mt-2">${entry.tcc_count || 0}</h3>
+                        <small class="text-muted">TCC数</small>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <h6>Stage 1: TCC 识别结果</h6>
-        <div class="bg-light p-3 rounded mb-3" style="max-height: 300px; overflow-y: auto;">
-            <pre class="mb-0"><code>${JSON.stringify(stage1, null, 2)}</code></pre>
-        </div>
-
-        <h6>Stage 2: 排名结果</h6>
-        <div class="bg-light p-3 rounded mb-3" style="max-height: 200px; overflow-y: auto;">
-            <pre class="mb-0"><code>${JSON.stringify(stage2, null, 2)}</code></pre>
-        </div>
-
-        <h6>Stage 3: 修改结果</h6>
-        <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">
-            <pre class="mb-0"><code>${JSON.stringify(stage3, null, 2)}</code></pre>
+            <div class="col-md-3">
+                <div class="card text-center h-100 border-success">
+                    <div class="card-body">
+                        <i class="bi bi-clock text-success" style="font-size: 1.5rem;"></i>
+                        <h3 class="mb-0 mt-2">${entry.processing_time ? entry.processing_time.toFixed(1) + 's' : '-'}</h3>
+                        <small class="text-muted">处理时间</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center h-100 border-info">
+                    <div class="card-body">
+                        <i class="bi bi-cloud text-info" style="font-size: 1.5rem;"></i>
+                        <h3 class="mb-0 mt-2">${entry.api_calls || 0}</h3>
+                        <small class="text-muted">API调用</small>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
+
+    // ===== 基本信息 =====
+    // 截取哈希值前16位用于显示
+    const shortHash = entry.content_hash ? entry.content_hash.substring(0, 16) + '...' : '-';
+
+    html += `
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <i class="bi bi-info-circle"></i> 基本信息
+            </div>
+            <div class="card-body py-3">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="text-muted me-3" style="min-width: 80px;">记录 ID</span>
+                            <code class="bg-light px-2 py-1 rounded">${entry.id}</code>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="text-muted me-3" style="min-width: 80px;">内容哈希</span>
+                            <code class="bg-light px-2 py-1 rounded small" title="${entry.content_hash}">${shortHash}</code>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="text-muted me-3" style="min-width: 80px;">提供商</span>
+                            <span class="badge bg-primary">${entry.provider || '-'}</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="text-muted me-3" style="min-width: 80px;">模型</span>
+                            <span class="badge bg-secondary">${entry.model || 'default'}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="text-muted me-3" style="min-width: 80px;">创建时间</span>
+                            <span>${formatDate(entry.created_at)}</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="text-muted me-3" style="min-width: 80px;">过期时间</span>
+                            <span>${formatDate(entry.expires_at)}</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="text-muted me-3" style="min-width: 80px;">缓存状态</span>
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> 有效</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="text-muted me-3" style="min-width: 80px;">脚本名称</span>
+                            <span class="text-truncate" style="max-width: 200px;" title="${escapeHtml(entry.script_name)}">${escapeHtml(entry.script_name || '-')}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // ===== Tab 导航 =====
+    html += `
+        <ul class="nav nav-tabs mb-3" id="detailTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tcc-tab" data-bs-toggle="tab" data-bs-target="#tccContent" type="button">
+                    <i class="bi bi-diagram-3"></i> TCC 识别
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ranking-tab" data-bs-toggle="tab" data-bs-target="#rankingContent" type="button">
+                    <i class="bi bi-bar-chart"></i> A/B/C 分级
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="scenes-tab" data-bs-toggle="tab" data-bs-target="#scenesContent" type="button">
+                    <i class="bi bi-collection-play"></i> 场景列表
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="modifications-tab" data-bs-toggle="tab" data-bs-target="#modificationsContent" type="button">
+                    <i class="bi bi-wrench"></i> 修改记录
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="raw-tab" data-bs-toggle="tab" data-bs-target="#rawContent" type="button">
+                    <i class="bi bi-code-slash"></i> 原始数据
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="detailTabContent">
+    `;
+
+    // ===== Tab 1: TCC 识别 =====
+    html += `<div class="tab-pane fade show active" id="tccContent" role="tabpanel">`;
+    html += renderTCCsContent(stage1);
+    html += `</div>`;
+
+    // ===== Tab 2: A/B/C 分级 =====
+    html += `<div class="tab-pane fade" id="rankingContent" role="tabpanel">`;
+    html += renderRankingsContent(stage2);
+    html += `</div>`;
+
+    // ===== Tab 3: 场景列表 =====
+    html += `<div class="tab-pane fade" id="scenesContent" role="tabpanel">`;
+    html += renderScenesContent(parsedScript);
+    html += `</div>`;
+
+    // ===== Tab 4: 修改记录 =====
+    html += `<div class="tab-pane fade" id="modificationsContent" role="tabpanel">`;
+    html += renderModificationsContent(stage3);
+    html += `</div>`;
+
+    // ===== Tab 5: 原始数据 =====
+    html += `
+        <div class="tab-pane fade" id="rawContent" role="tabpanel">
+            <div class="accordion" id="rawDataAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage1Raw">
+                            Stage 1: Discoverer Output
+                        </button>
+                    </h2>
+                    <div id="stage1Raw" class="accordion-collapse collapse" data-bs-parent="#rawDataAccordion">
+                        <div class="accordion-body">
+                            <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-size: 12px;"><code>${JSON.stringify(stage1, null, 2)}</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage2Raw">
+                            Stage 2: Auditor Output
+                        </button>
+                    </h2>
+                    <div id="stage2Raw" class="accordion-collapse collapse" data-bs-parent="#rawDataAccordion">
+                        <div class="accordion-body">
+                            <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-size: 12px;"><code>${JSON.stringify(stage2, null, 2)}</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage3Raw">
+                            Stage 3: Modifier Output
+                        </button>
+                    </h2>
+                    <div id="stage3Raw" class="accordion-collapse collapse" data-bs-parent="#rawDataAccordion">
+                        <div class="accordion-body">
+                            <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-size: 12px;"><code>${JSON.stringify(stage3, null, 2)}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    html += `</div>`; // End tab-content
+
+    return html;
+}
+
+// Render TCCs content
+function renderTCCsContent(stage1) {
+    const tccs = stage1.tccs || [];
+
+    if (tccs.length === 0) {
+        return `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                <p class="mt-3">未识别到戏剧冲突链 (TCC)</p>
+            </div>
+        `;
+    }
+
+    // Calculate average confidence
+    const avgConfidence = tccs.reduce((sum, tcc) => sum + (tcc.confidence || 0), 0) / tccs.length;
+
+    let html = `
+        <div class="alert alert-info mb-3">
+            <i class="bi bi-info-circle"></i>
+            共识别出 <strong>${tccs.length}</strong> 个戏剧冲突链，平均置信度 <strong>${(avgConfidence * 100).toFixed(1)}%</strong>
+        </div>
+    `;
+
+    tccs.forEach((tcc, index) => {
+        const confidenceClass = tcc.confidence >= 0.9 ? 'success' : tcc.confidence >= 0.7 ? 'warning' : 'danger';
+        const borderClass = index === 0 ? 'border-warning' : index === 1 ? 'border-info' : 'border-secondary';
+
+        html += `
+            <div class="card mb-3 border-start border-4 ${borderClass}">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <span>
+                        <strong>${tcc.tcc_id}</strong>
+                        <span class="badge bg-${confidenceClass} ms-2">${((tcc.confidence || 0) * 100).toFixed(0)}% 置信度</span>
+                    </span>
+                    <span class="badge bg-light text-dark">${tcc.core_conflict_type || '未知类型'}</span>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">超级目标 (Super Objective)</h6>
+                    <p class="lead mb-3">${escapeHtml(tcc.super_objective || '未指定')}</p>
+
+                    ${tcc.evidence_scenes && tcc.evidence_scenes.length > 0 ? `
+                        <h6 class="text-muted mb-2">证据场景</h6>
+                        <div class="mb-0">
+                            ${tcc.evidence_scenes.map(s => `<span class="badge bg-secondary me-1">${s}</span>`).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    // Metadata
+    if (stage1.metadata) {
+        html += `
+            <div class="card bg-light">
+                <div class="card-body small">
+                    <strong>元数据:</strong>
+                    分析场景数: ${stage1.metadata.total_scenes_analyzed || '-'} |
+                    主要证据可用: ${stage1.metadata.primary_evidence_available ? '是' : '否'} |
+                    回退模式: ${stage1.metadata.fallback_mode ? '是' : '否'}
+                    ${stage1.metadata.fallback_reason ? `<br><span class="text-muted">回退原因: ${stage1.metadata.fallback_reason}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    return html;
+}
+
+// Render Rankings content
+function renderRankingsContent(stage2) {
+    const rankings = stage2.rankings || {};
+
+    if (!rankings.a_line && (!rankings.b_lines || rankings.b_lines.length === 0) && (!rankings.c_lines || rankings.c_lines.length === 0)) {
+        return `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-bar-chart" style="font-size: 3rem;"></i>
+                <p class="mt-3">无分级数据</p>
+            </div>
+        `;
+    }
+
+    let html = '';
+
+    // A-Line (Spine)
+    html += `<div class="card mb-3 border-start border-4 border-warning">`;
+    html += `<div class="card-header bg-warning bg-opacity-10"><strong><i class="bi bi-star-fill text-warning"></i> A 线 (主线 / Spine)</strong></div>`;
+    html += `<div class="card-body">`;
+    if (rankings.a_line) {
+        const aLine = rankings.a_line;
+        html += `
+            <h5>${aLine.tcc_id}</h5>
+            <p class="mb-2">${escapeHtml(aLine.super_objective || '未指定')}</p>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="bg-light rounded p-2 text-center">
+                        <small class="text-muted d-block">Spine 评分</small>
+                        <strong class="text-warning">${aLine.spine_score?.toFixed(1) || '-'} / 10</strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="bg-light rounded p-2 text-center">
+                        <small class="text-muted d-block">场景数</small>
+                        <strong>${aLine.reasoning?.scene_count || '-'}</strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="bg-light rounded p-2 text-center">
+                        <small class="text-muted d-block">驱动高潮</small>
+                        <strong>${aLine.reasoning?.drives_climax ? '是' : '否'}</strong>
+                    </div>
+                </div>
+            </div>
+            ${aLine.forces ? `
+                <div class="mt-3">
+                    <small class="text-muted">力量分析:</small>
+                    <ul class="small mb-0">
+                        ${aLine.forces.protagonist ? `<li><strong>主角:</strong> ${escapeHtml(aLine.forces.protagonist)}</li>` : ''}
+                        ${aLine.forces.primary_antagonist ? `<li><strong>主要对手:</strong> ${escapeHtml(aLine.forces.primary_antagonist)}</li>` : ''}
+                    </ul>
+                </div>
+            ` : ''}
+        `;
+    } else {
+        html += `<p class="text-muted mb-0">未识别到 A 线</p>`;
+    }
+    html += `</div></div>`;
+
+    // B-Lines (Heart)
+    html += `<div class="card mb-3 border-start border-4 border-info">`;
+    html += `<div class="card-header bg-info bg-opacity-10"><strong><i class="bi bi-heart-fill text-info"></i> B 线 (副线 / Heart)</strong></div>`;
+    html += `<div class="card-body">`;
+    if (rankings.b_lines && rankings.b_lines.length > 0) {
+        rankings.b_lines.forEach(bLine => {
+            html += `
+                <div class="border-bottom pb-2 mb-2">
+                    <h6>${bLine.tcc_id}</h6>
+                    <p class="mb-1 small">${escapeHtml(bLine.super_objective || '未指定')}</p>
+                    <span class="badge bg-info">Heart 评分: ${bLine.heart_score?.toFixed(1) || '-'}</span>
+                </div>
+            `;
+        });
+    } else {
+        html += `<p class="text-muted mb-0">未识别到 B 线</p>`;
+    }
+    html += `</div></div>`;
+
+    // C-Lines (Flavor)
+    html += `<div class="card mb-3 border-start border-4 border-secondary">`;
+    html += `<div class="card-header bg-secondary bg-opacity-10"><strong><i class="bi bi-palette text-secondary"></i> C 线 (次线 / Flavor)</strong></div>`;
+    html += `<div class="card-body">`;
+    if (rankings.c_lines && rankings.c_lines.length > 0) {
+        rankings.c_lines.forEach(cLine => {
+            html += `
+                <div class="border-bottom pb-2 mb-2">
+                    <h6>${cLine.tcc_id}</h6>
+                    <p class="mb-1 small">${escapeHtml(cLine.super_objective || '未指定')}</p>
+                    <span class="badge bg-secondary">Flavor 评分: ${cLine.flavor_score?.toFixed(1) || '-'}</span>
+                </div>
+            `;
+        });
+    } else {
+        html += `<p class="text-muted mb-0">未识别到 C 线</p>`;
+    }
+    html += `</div></div>`;
+
+    // Metrics
+    if (stage2.metrics) {
+        html += `
+            <div class="card bg-light">
+                <div class="card-body small">
+                    <strong>覆盖率:</strong>
+                    A 线: ${((stage2.metrics.a_line_coverage || 0) * 100).toFixed(0)}% |
+                    B 线: ${((stage2.metrics.b_line_coverage || 0) * 100).toFixed(0)}% |
+                    C 线: ${((stage2.metrics.c_line_coverage || 0) * 100).toFixed(0)}%
+                </div>
+            </div>
+        `;
+    }
+
+    return html;
+}
+
+// Render Scenes content
+function renderScenesContent(parsedScript) {
+    const scenes = parsedScript.scenes || [];
+
+    if (scenes.length === 0) {
+        return `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-collection-play" style="font-size: 3rem;"></i>
+                <p class="mt-3">无场景数据</p>
+            </div>
+        `;
+    }
+
+    let html = `
+        <div class="alert alert-secondary mb-3">
+            <i class="bi bi-film"></i> 共 <strong>${scenes.length}</strong> 个场景
+        </div>
+        <div class="accordion" id="scenesAccordion">
+    `;
+
+    scenes.forEach((scene, index) => {
+        const characters = scene.characters || [];
+        const keyEvents = scene.key_events || [];
+
+        html += `
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button ${index > 0 ? 'collapsed' : ''}" type="button" data-bs-toggle="collapse" data-bs-target="#scene${index}">
+                        <span class="badge bg-dark me-2">${scene.scene_id}</span>
+                        ${escapeHtml(scene.setting || '未知场景')}
+                        <span class="badge bg-light text-dark ms-auto">${characters.length} 角色</span>
+                    </button>
+                </h2>
+                <div id="scene${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" data-bs-parent="#scenesAccordion">
+                    <div class="accordion-body">
+                        ${scene.scene_mission ? `
+                            <div class="mb-3">
+                                <strong class="text-primary">场景使命:</strong>
+                                <p class="mb-0">${escapeHtml(scene.scene_mission)}</p>
+                            </div>
+                        ` : ''}
+
+                        ${characters.length > 0 ? `
+                            <div class="mb-3">
+                                <strong>角色:</strong>
+                                ${characters.slice(0, 10).map(c => `<span class="badge bg-outline-secondary border me-1">${escapeHtml(c)}</span>`).join('')}
+                                ${characters.length > 10 ? `<span class="text-muted">...等 ${characters.length} 人</span>` : ''}
+                            </div>
+                        ` : ''}
+
+                        ${keyEvents.length > 0 ? `
+                            <div class="mb-0">
+                                <strong>关键事件:</strong>
+                                <ul class="small mb-0">
+                                    ${keyEvents.slice(0, 5).map(e => `<li>${escapeHtml(e)}</li>`).join('')}
+                                    ${keyEvents.length > 5 ? `<li class="text-muted">...等 ${keyEvents.length} 个事件</li>` : ''}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    return html;
+}
+
+// Render Modifications content
+function renderModificationsContent(stage3) {
+    const modificationLog = stage3.modification_log || [];
+    const validation = stage3.validation || {};
+
+    let html = '';
+
+    // Validation summary
+    html += `
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card text-center ${validation.total_issues > 0 ? 'border-warning' : 'border-success'}">
+                    <div class="card-body py-2">
+                        <h4 class="mb-0">${validation.total_issues || 0}</h4>
+                        <small class="text-muted">发现问题</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-success">
+                    <div class="card-body py-2">
+                        <h4 class="mb-0 text-success">${validation.fixed || 0}</h4>
+                        <small class="text-muted">已修复</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-secondary">
+                    <div class="card-body py-2">
+                        <h4 class="mb-0">${validation.skipped || 0}</h4>
+                        <small class="text-muted">已跳过</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center ${validation.new_issues_introduced > 0 ? 'border-danger' : 'border-light'}">
+                    <div class="card-body py-2">
+                        <h4 class="mb-0 ${validation.new_issues_introduced > 0 ? 'text-danger' : ''}">${validation.new_issues_introduced || 0}</h4>
+                        <small class="text-muted">新增问题</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Modification log
+    if (modificationLog.length === 0) {
+        html += `
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                <p class="mt-3 mb-0">无需修改，剧本结构完整</p>
+            </div>
+        `;
+    } else {
+        html += `<div class="list-group">`;
+        modificationLog.forEach((mod, index) => {
+            const statusClass = mod.status === 'applied' ? 'success' : mod.status === 'skipped' ? 'secondary' : 'warning';
+            const statusIcon = mod.status === 'applied' ? 'check-circle' : mod.status === 'skipped' ? 'skip-forward' : 'exclamation-circle';
+
+            html += `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="badge bg-${statusClass} me-2"><i class="bi bi-${statusIcon}"></i> ${mod.status || '未知'}</span>
+                            <strong>${mod.issue_id || '修改 ' + (index + 1)}</strong>
+                        </div>
+                        <small class="text-muted">${mod.change_type || '-'}</small>
+                    </div>
+                    ${mod.field ? `<p class="mb-1 mt-2 small"><strong>字段:</strong> ${mod.field}</p>` : ''}
+                    ${mod.old_value ? `<p class="mb-1 small text-danger"><strong>旧值:</strong> ${escapeHtml(String(mod.old_value).substring(0, 100))}</p>` : ''}
+                    ${mod.new_value ? `<p class="mb-0 small text-success"><strong>新值:</strong> ${escapeHtml(String(mod.new_value).substring(0, 100))}</p>` : ''}
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+
+    return html;
 }
 
 // Delete entry

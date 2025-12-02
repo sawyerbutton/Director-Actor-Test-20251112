@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.11.0 (2025-12-01)
-**Last Updated**: 2025-12-01
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + TXT export + Full Report Tab + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization + Analysis Cache Persistence)
+**Current Version**: 2.11.1 (2025-12-02)
+**Last Updated**: 2025-12-02
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + TXT export + Full Report Tab + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization + Analysis Cache Persistence + History Detail Modal Enhancement)
 
 ---
 
@@ -63,8 +63,52 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 Gemini Thinking Mode Optimization** (v2.9.0): ✅ 95% speed improvement via thinking_level=LOW
 - **🆕 TXT Report Export** (v2.10.0): ✅ Plain text report format with ASCII formatting
 - **🆕 Analysis Cache Persistence** (v2.11.0): ✅ SQLite-based cache with 21,000x speedup on cache hits
+- **🆕 History Detail Modal Enhancement** (v2.11.1): ✅ Rich visualization with tabs, cards, and structured display
 
-### 🎉 Recent Fixes (2025-12-01)
+### 🎉 Recent Fixes (2025-12-02)
+
+#### Session 17: History Detail Modal Enhancement (v2.11.1)
+1. **Rich Visualization Detail Modal** (✅ NEW - Session 17)
+   - **Feature**: Enhanced "查看详情" popup in history page with structured visualization
+   - **Problem**: Original modal only displayed raw JSON data with minimal styling
+   - **Solution**: Complete rewrite of `renderDetailContent()` function with 5 tabs and rich UI components
+
+2. **Overview Cards** (✅ NEW - Session 17)
+   - 4 statistics cards: Scene Count, TCC Count, Processing Time, API Calls
+   - Color-coded borders (blue, yellow, green, cyan)
+   - **Location**: `templates/history.html:341-380`
+
+3. **Basic Info Section** (✅ FIXED - Session 17)
+   - **Problem**: Table layout with misaligned columns, long hash values causing overflow
+   - **Solution**: Flexbox layout with `d-flex align-items-center`, hash truncation (16 chars + `...`)
+   - Added script name field, hover tooltip for full hash
+   - **Location**: `templates/history.html:382-432`
+
+4. **5-Tab Navigation** (✅ NEW - Session 17)
+   | Tab | Content | Helper Function |
+   |-----|---------|-----------------|
+   | TCC 识别 | TCC cards with confidence badges, evidence scenes | `renderTCCsContent()` |
+   | A/B/C 分级 | A-line (yellow), B-line (cyan), C-line (gray) rankings | `renderRankingsContent()` |
+   | 场景列表 | Accordion with scene mission, characters, key events | `renderScenesContent()` |
+   | 修改记录 | Validation stats cards, modification log with status badges | `renderModificationsContent()` |
+   | 原始数据 | Collapsible JSON display for Stage 1/2/3 outputs | Inline implementation |
+   - **Location**: `templates/history.html:434-510`
+
+5. **Helper Functions** (✅ NEW - Session 17)
+   - `renderTCCsContent(stage1)` - Renders TCC cards with confidence color coding
+   - `renderRankingsContent(stage2)` - Renders A/B/C line rankings with scores
+   - `renderScenesContent(parsedScript)` - Renders scene accordion
+   - `renderModificationsContent(stage3)` - Renders validation summary and modification log
+   - `escapeHtml(text)` - XSS protection
+   - `formatDate(dateStr)` - Date formatting to Chinese locale
+   - **Location**: `templates/history.html:512-900`
+
+6. **UI Components Used**
+   - Bootstrap 5 Cards (statistics, info cards)
+   - Bootstrap 5 Tabs (5-tab navigation)
+   - Bootstrap 5 Accordion (scenes, raw data)
+   - Bootstrap 5 Badges (confidence, status, line type)
+   - Bootstrap Icons (decorative icons)
 
 #### Session 16: Analysis Cache Persistence (v2.11.0)
 1. **SQLite Cache System** (✅ NEW - Session 16)
@@ -1333,12 +1377,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.11.0 (Session 16: Analysis Cache Persistence)
+**Project Version**: 2.11.1 (Session 17: History Detail Modal Enhancement)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 2.6 (Added Analysis Cache Persistence, History Page)
-**Last Updated**: 2025-12-01
-**Latest Commit**: 92fa942 (feat: Session 16 - Analysis Cache Persistence)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + Markdown/TXT export + Full Report Tab + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization + Analysis Cache Persistence - Production Ready)
+**Documentation Version**: 2.7 (Added History Detail Modal Enhancement)
+**Last Updated**: 2025-12-02
+**Latest Commit**: (pending) (feat: Session 17 - History Detail Modal Enhancement)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + Markdown/TXT export + Full Report Tab + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization + Analysis Cache Persistence + History Detail Modal - Production Ready)
 
 ---
 
