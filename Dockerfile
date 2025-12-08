@@ -63,11 +63,13 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 USER appuser
 
 # Create necessary directories
+# Note: /app/data is for SQLite cache database (mounted as volume in docker-compose)
 RUN mkdir -p \
     /app/uploads \
     /app/outputs \
     /app/ab_tests \
     /app/parse_jobs \
+    /app/data \
     /data/uploads \
     /data/outputs
 

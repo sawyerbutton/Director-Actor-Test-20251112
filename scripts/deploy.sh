@@ -129,7 +129,7 @@ start_with_docker() {
         --name ${CONTAINER_NAME} \
         -p ${PORT}:8000 \
         -v "$(pwd)/.env:/app/.env:ro" \
-        -v screenplay-data:/data \
+        -v screenplay-data:/app/data \
         -v "$(pwd)/examples:/app/examples:ro" \
         --restart unless-stopped \
         ${IMAGE_NAME}:${IMAGE_TAG}

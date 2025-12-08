@@ -1,11 +1,12 @@
 # ============================================================================
 # Docker Compose Configuration for Script Analysis System
 # ============================================================================
-# Version: 2.11.1
+# Version: 2.12.12
 # Purpose: Simplified deployment of screenplay analysis system with Web UI
 # Features: TCC analysis, Action Analysis Protocol (AAP), Chinese output,
 #           Gemini model selection, dual API key support, Thinking Mode Optimization,
-#           Analysis Cache Persistence, History Detail Modal Enhancement
+#           Analysis Cache Persistence, History Detail Modal Enhancement,
+#           Non-Blocking LLM Calls (asyncio.to_thread)
 # ============================================================================
 
 services:
@@ -13,13 +14,13 @@ services:
   # Main Application Service
   # ==========================================================================
   web:
-    image: screenplay-analysis:${APP_VERSION:-2.11.1}
+    image: screenplay-analysis:${APP_VERSION:-2.12.12}
     container_name: screenplay-web
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        - APP_VERSION=${APP_VERSION:-2.11.1}
+        - APP_VERSION=${APP_VERSION:-2.12.12}
     ports:
       - "8014:8000"
     environment:
@@ -46,8 +47,9 @@ services:
       # Mount .env file (read-only)
       - ./.env:/app/.env:ro
 
-      # Persistent data volume
-      - screenplay-data:/data
+      # Persistent data volume for cache database
+      # Maps to /app/data inside container (matches DEFAULT_DB_PATH in src/db/models.py)
+      - screenplay-data:/app/data
 
       # Optional: Mount local examples for testing
       - ./examples:/app/examples:ro
