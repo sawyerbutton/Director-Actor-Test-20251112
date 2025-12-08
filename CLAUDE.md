@@ -10,9 +10,9 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 **Technology Stack**: Python, LangChain, LangGraph, Pydantic, DeepSeek/Claude/OpenAI/Gemini
 
-**Current Version**: 2.11.1 (2025-12-02)
-**Last Updated**: 2025-12-02
-**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + TXT export + Full Report Tab + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization + Analysis Cache Persistence + History Detail Modal Enhancement)
+**Current Version**: 2.12.12 (2025-12-08)
+**Last Updated**: 2025-12-08
+**Completion**: 100% (All three stages + TXT Parser + Web UI + Mermaid Visualization + LangSmith observability + A/B testing + Markdown export + TXT export + Full Report Tab + Action Analysis Protocol + Gemini Model Selection + Chinese Scene Format + Gemini 3 API Key + Gemini Thinking Mode Optimization + Analysis Cache Persistence + History Detail Modal Enhancement + Non-Blocking LLM Calls)
 
 ---
 
@@ -32,7 +32,7 @@ This file provides quick navigation to all project documentation for AI-assisted
 
 ---
 
-## Current Status (2025-11-30)
+## Current Status (2025-12-08)
 
 ### ✅ What's Working (100% Complete)
 - **Unit Tests**: 44/44 passing (100% pass rate)
@@ -64,8 +64,34 @@ This file provides quick navigation to all project documentation for AI-assisted
 - **🆕 TXT Report Export** (v2.10.0): ✅ Plain text report format with ASCII formatting
 - **🆕 Analysis Cache Persistence** (v2.11.0): ✅ SQLite-based cache with 21,000x speedup on cache hits
 - **🆕 History Detail Modal Enhancement** (v2.11.1): ✅ Rich visualization with tabs, cards, and structured display
+- **🆕 Non-Blocking LLM Calls** (v2.12.12): ✅ Fixed progress bar stuck issue with asyncio.to_thread()
 
-### 🎉 Recent Fixes (2025-12-02)
+### 🎉 Recent Fixes (2025-12-08)
+
+#### Session 18: Non-Blocking LLM Calls (v2.12.12)
+1. **Progress Bar Stuck Fix** (✅ FIXED - Session 18)
+   - **Problem**: TXT upload progress bar stuck at 5%, 230+ polling requests with no response
+   - **Root Cause**: Synchronous LLM calls (`self.llm.invoke()`) in async function blocked FastAPI event loop
+   - **Solution**: Use `asyncio.to_thread()` to run synchronous LLM calls in thread pool
+   - **Location**: `src/parser/llm_enhancer.py:181-185`
+   - **Result**: Progress bar updates smoothly from 5% to 100%
+
+2. **Key Code Change** (✅ FIXED - Session 18)
+   ```python
+   # Before (blocking event loop):
+   results[step_name] = extract_func(*args)
+
+   # After (non-blocking):
+   import asyncio
+   results[step_name] = await asyncio.to_thread(extract_func, *args)
+   ```
+
+3. **Technical Explanation**
+   - `asyncio.to_thread()` runs sync function in separate thread
+   - Event loop remains free to handle HTTP requests
+   - Polling requests get responses, progress bar updates in real-time
+
+### 🎉 Previous Fixes (2025-12-02)
 
 #### Session 17: History Detail Modal Enhancement (v2.11.1)
 1. **Rich Visualization Detail Modal** (✅ NEW - Session 17)
@@ -1377,12 +1403,12 @@ LangGraph-based orchestration with specialized agents.
 
 ## Version Information
 
-**Project Version**: 2.11.1 (Session 17: History Detail Modal Enhancement)
+**Project Version**: 2.12.12 (Session 18: Non-Blocking LLM Calls)
 **Prompt Version**: 2.6.0-AAP (Action Analysis Protocol + Language Requirement)
-**Documentation Version**: 2.7 (Added History Detail Modal Enhancement)
-**Last Updated**: 2025-12-02
-**Latest Commit**: (pending) (feat: Session 17 - History Detail Modal Enhancement)
-**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + Markdown/TXT export + Full Report Tab + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization + Analysis Cache Persistence + History Detail Modal - Production Ready)
+**Documentation Version**: 2.8 (Added Non-Blocking LLM Calls)
+**Last Updated**: 2025-12-08
+**Latest Commit**: (pending) (feat: Session 18 - Non-Blocking LLM Calls)
+**Completion Status**: 100% (All stages + TXT Parser + Web UI + Mermaid + observability + A/B testing + Markdown/TXT export + Full Report Tab + Gemini Model Selection + AAP + Version Tracking + Thinking Mode Optimization + Analysis Cache Persistence + History Detail Modal + Non-Blocking LLM Calls - Production Ready)
 
 ---
 

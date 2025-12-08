@@ -17,6 +17,7 @@ from fastapi import FastAPI, Request, UploadFile, File, WebSocket, WebSocketDisc
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from prompts.schemas import Script
@@ -39,6 +40,15 @@ app = FastAPI(
     title="剧本叙事结构分析系统",
     description="Script Narrative Structure Analysis System - Web Interface",
     version=__version__
+)
+
+# Add CORS middleware to allow cross-origin requests (for VS Code port forwarding)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 # Static file version for cache busting (update this when JS/CSS changes)
@@ -67,26 +77,67 @@ cache_manager = CacheManager()
 
 # WebSocket manager for progress updates
 class ConnectionManager:
-    """Manages WebSocket connections for real-time progress updates."""
+    """Manages WebSocket connections for real-time progress updates.
+
+    Features:
+    - Message history queue for replay on late connections
+    - Automatic cleanup of old message history
+    - Handles race condition between task start and WebSocket connect
+    """
+
+    # Maximum messages to keep in history per job
+    MAX_HISTORY_SIZE = 50
+    # Time in seconds to keep history after job completion
+    HISTORY_RETENTION_SECONDS = 300  # 5 minutes
 
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
+        self.message_history: Dict[str, list] = {}  # job_id -> list of messages
+        self.job_completion_times: Dict[str, float] = {}  # job_id -> completion timestamp
 
     async def connect(self, job_id: str, websocket: WebSocket):
+        """Accept WebSocket connection and replay message history."""
         await websocket.accept()
         self.active_connections[job_id] = websocket
         logger.info(f"WebSocket connected for job: {job_id}")
 
+        # Replay message history if available
+        if job_id in self.message_history:
+            history = self.message_history[job_id]
+            logger.info(f"Replaying {len(history)} historical messages for job {job_id}")
+            for msg in history:
+                try:
+                    await websocket.send_json(msg)
+                except Exception as e:
+                    logger.error(f"Error replaying message for job {job_id}: {e}")
+                    break
+
     def disconnect(self, job_id: str):
+        """Disconnect WebSocket and optionally schedule history cleanup."""
         if job_id in self.active_connections:
             del self.active_connections[job_id]
             logger.info(f"WebSocket disconnected for job: {job_id}")
 
     async def send_progress(self, job_id: str, message: dict):
-        """Send progress update to client."""
+        """Send progress update to client and save to history."""
+        # Always save to history first (handles race condition)
+        if job_id not in self.message_history:
+            self.message_history[job_id] = []
+
+        # Add message to history
+        self.message_history[job_id].append(message)
+
+        # Trim history if too large
+        if len(self.message_history[job_id]) > self.MAX_HISTORY_SIZE:
+            self.message_history[job_id] = self.message_history[job_id][-self.MAX_HISTORY_SIZE:]
+
+        # Mark completion time for cleanup scheduling
+        if message.get("type") in ("complete", "error"):
+            self.job_completion_times[job_id] = time.time()
+
+        # Send to connected client if available
         if job_id in self.active_connections:
             try:
-                # Log message content for debugging
                 logger.debug(f"Sending progress for job {job_id}: {message}")
                 await self.active_connections[job_id].send_json(message)
             except Exception as e:
@@ -94,7 +145,52 @@ class ConnectionManager:
                 logger.error(f"Message that failed: {message}")
                 self.disconnect(job_id)
 
+    def cleanup_old_history(self):
+        """Remove message history for completed jobs older than retention period."""
+        current_time = time.time()
+        jobs_to_clean = []
+
+        for job_id, completion_time in self.job_completion_times.items():
+            if current_time - completion_time > self.HISTORY_RETENTION_SECONDS:
+                jobs_to_clean.append(job_id)
+
+        for job_id in jobs_to_clean:
+            if job_id in self.message_history:
+                del self.message_history[job_id]
+            if job_id in self.job_completion_times:
+                del self.job_completion_times[job_id]
+            logger.debug(f"Cleaned up message history for job {job_id}")
+
+        if jobs_to_clean:
+            logger.info(f"Cleaned up message history for {len(jobs_to_clean)} completed jobs")
+
+    def get_history_stats(self) -> dict:
+        """Get statistics about message history (for debugging)."""
+        return {
+            "active_connections": len(self.active_connections),
+            "jobs_with_history": len(self.message_history),
+            "total_messages": sum(len(msgs) for msgs in self.message_history.values()),
+            "pending_cleanup": len(self.job_completion_times)
+        }
+
 manager = ConnectionManager()
+
+# Background task for periodic history cleanup
+async def periodic_history_cleanup():
+    """Background task to periodically clean up old message history."""
+    while True:
+        await asyncio.sleep(60)  # Run every 60 seconds
+        try:
+            manager.cleanup_old_history()
+        except Exception as e:
+            logger.error(f"Error during history cleanup: {e}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on application startup."""
+    asyncio.create_task(periodic_history_cleanup())
+    logger.info("Started periodic history cleanup task")
 
 
 # Pydantic models for API
@@ -395,10 +491,14 @@ async def get_parsed_script(job_id: str):
         raise HTTPException(status_code=400, detail=job.get("error", "Parsing failed"))
 
     if job["status"] != "parsed":
-        # Still parsing
+        # Still parsing - include all progress info
+        progress = job.get("progress", 0)
+        message = job.get("message", "解析中...")
+        logger.info(f"Polling response for {job_id}: progress={progress}, message={message}")
         return {
             "status": "parsing",
-            "progress": job.get("progress", 0)
+            "progress": progress,
+            "message": message
         }
 
     # Parsing complete - return script data
@@ -648,10 +748,20 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
 
         # Keep connection alive
         while True:
-            # Wait for client messages (ping/pong)
-            await websocket.receive_text()
+            try:
+                # Wait for client messages (ping/pong)
+                await websocket.receive_text()
+            except RuntimeError as e:
+                # Handle "WebSocket is not connected" error gracefully
+                if "not connected" in str(e).lower():
+                    break
+                raise
 
     except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.error(f"WebSocket error for job {job_id}: {e}")
+    finally:
         manager.disconnect(job_id)
 
 
@@ -675,12 +785,12 @@ async def run_parsing_job(
     try:
         # Update status to parsing
         active_jobs[job_id]["status"] = "parsing"
-        active_jobs[job_id]["progress"] = 10
+        active_jobs[job_id]["progress"] = 8
         await manager.send_progress(job_id, {
             "type": "progress",
-            "stage": "parsing",
-            "progress": 10,
-            "message": "Starting to parse TXT script..."
+            "stage": "init",
+            "progress": 8,
+            "message": "正在初始化解析器..."
         })
 
         # Import parser
@@ -688,37 +798,75 @@ async def run_parsing_job(
         from src.pipeline import create_llm
 
         # Define progress callback for LLM enhancement
+        # Now receives current/total as LLM call counts (5 per scene)
         async def on_scene_progress(current: int, total: int, message: str):
-            """Report scene-by-scene progress during LLM enhancement."""
-            # Calculate progress: 20% base + 70% for scene enhancement (20-90%)
-            scene_progress = 20 + int(70 * current / total)
-            active_jobs[job_id]["progress"] = scene_progress
+            """Report per-LLM-call progress during LLM enhancement.
+
+            Args:
+                current: Current LLM call number (1 to total)
+                total: Total number of LLM calls (num_scenes * 5)
+                message: Progress message from parser (includes scene info)
+            """
+            # Calculate progress: 25% base + 65% for LLM enhancement (25-90%)
+            llm_progress = 25 + int(65 * current / total)
+            active_jobs[job_id]["progress"] = llm_progress
+            active_jobs[job_id]["message"] = message
+            logger.info(f"[POLLING] Updated job {job_id}: progress={llm_progress}, message={message}")
+
             await manager.send_progress(job_id, {
                 "type": "progress",
-                "stage": "parsing",
-                "progress": scene_progress,
-                "message": message
+                "stage": "llm_enhancement",
+                "progress": llm_progress,
+                "message": message,  # Already formatted by parser
+                "current_step": current,
+                "total_steps": total
             })
 
         # Choose parser based on enhancement flag
         if use_llm_enhancement:
+            # Update progress - creating LLM
+            active_jobs[job_id]["progress"] = 12
+            await manager.send_progress(job_id, {
+                "type": "progress",
+                "stage": "init",
+                "progress": 12,
+                "message": f"正在连接 {provider.upper()} 模型..."
+            })
+
             # Create LLM
             llm = create_llm(provider=provider, model=model)
             parser = LLMEnhancedParser(llm=llm, progress_callback=on_scene_progress)
 
-            # Update progress for LLM enhancement
-            active_jobs[job_id]["progress"] = 20
+            # Update progress for basic structure parsing
+            active_jobs[job_id]["progress"] = 18
             await manager.send_progress(job_id, {
                 "type": "progress",
-                "stage": "parsing",
-                "progress": 20,
-                "message": "Parsing basic structure..."
+                "stage": "basic_parsing",
+                "progress": 18,
+                "message": "正在解析剧本基础结构..."
             })
         else:
             parser = TXTScriptParser()
+            # Update progress for non-LLM parsing
+            active_jobs[job_id]["progress"] = 15
+            await manager.send_progress(job_id, {
+                "type": "progress",
+                "stage": "basic_parsing",
+                "progress": 15,
+                "message": "正在解析剧本结构 (无 LLM 增强)..."
+            })
 
         # Parse the script (await if async parser)
         logger.info(f"Parsing TXT script for job {job_id}")
+
+        # Send parsing start message
+        await manager.send_progress(job_id, {
+            "type": "progress",
+            "stage": "parsing",
+            "progress": 22,
+            "message": "正在分割场景并提取角色..."
+        })
+
         if use_llm_enhancement:
             # LLMEnhancedParser.parse() is async
             script = await parser.parse(file_path)
@@ -726,26 +874,46 @@ async def run_parsing_job(
             # TXTScriptParser.parse() is sync
             script = parser.parse(file_path)
 
+        # Send finalizing message
+        await manager.send_progress(job_id, {
+            "type": "progress",
+            "stage": "finalizing",
+            "progress": 92,
+            "message": "正在保存解析结果..."
+        })
+
         # Save parsed JSON
         json_path = Path(file_path).with_suffix('.json')
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(script.model_dump(), f, ensure_ascii=False, indent=2)
+
+        # Calculate statistics
+        scene_count = len(script.scenes)
+        all_characters = set()
+        key_event_count = 0
+        for scene in script.scenes:
+            all_characters.update(scene.characters)
+            if scene.key_events:
+                key_event_count += len(scene.key_events)
 
         # Update job with parsed script
         active_jobs[job_id]["status"] = "parsed"
         active_jobs[job_id]["parsed_script_path"] = str(json_path)
         active_jobs[job_id]["script"] = script
         active_jobs[job_id]["progress"] = 100
+
+        # Send completion message with detailed stats
         await manager.send_progress(job_id, {
             "type": "complete",
             "stage": "parsed",
             "progress": 100,
-            "message": "Script parsed successfully!",
-            "scene_count": len(script.scenes),
-            "character_count": len(set(char for scene in script.scenes for char in scene.characters))
+            "message": f"解析完成! 共 {scene_count} 个场景，{len(all_characters)} 个角色，{key_event_count} 个关键事件",
+            "scene_count": scene_count,
+            "character_count": len(all_characters),
+            "key_event_count": key_event_count
         })
 
-        logger.info(f"Parsing complete for job {job_id}")
+        logger.info(f"Parsing complete for job {job_id}: {scene_count} scenes, {len(all_characters)} characters")
 
     except Exception as e:
         logger.error(f"Parsing failed for job {job_id}: {e}", exc_info=True)
@@ -753,7 +921,7 @@ async def run_parsing_job(
         active_jobs[job_id]["error"] = str(e)
         await manager.send_progress(job_id, {
             "type": "error",
-            "message": f"Parsing failed: {str(e)}"
+            "message": f"解析失败: {str(e)}"
         })
 
 

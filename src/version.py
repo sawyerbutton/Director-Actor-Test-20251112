@@ -9,13 +9,13 @@ import subprocess
 from functools import lru_cache
 
 # Application version - update this when releasing new versions
-__version__ = "2.11.1"
+__version__ = "2.12.12"
 
 # Version name for display
-VERSION_NAME = "Session 17: History Detail Modal Enhancement"
+VERSION_NAME = "Session 18: Non-Blocking LLM Calls"
 
 # Build info
-BUILD_DATE = "2025-12-02"
+BUILD_DATE = "2025-12-08"
 
 
 @lru_cache(maxsize=1)

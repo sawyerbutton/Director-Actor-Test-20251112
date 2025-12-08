@@ -166,6 +166,13 @@ ws.onopen = function() {
     console.log('WebSocket connected for job:', jobId);
 };
 
+// Start polling immediately as a backup (complements WebSocket)
+// This ensures progress updates even if WebSocket messages are missed
+setTimeout(() => {
+    console.log('Starting polling as backup...');
+    startPolling();
+}, 500);
+
 ws.onmessage = function(event) {
     const message = JSON.parse(event.data);
     console.log('Progress update:', message);
@@ -199,16 +206,34 @@ function startPolling() {
     pollingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/parsed-script/${jobId}`);
+
+            // Handle 404 - job not found (might happen after server restart)
+            if (response.status === 404) {
+                console.error('Job not found (404) - job may have been lost after server restart');
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+                handleError({ message: '任务已丢失，请返回首页重新上传文件' });
+                return;
+            }
+
             const data = await response.json();
+            console.log('Polling response:', data);
 
             if (data.status === 'complete') {
                 clearInterval(pollingInterval);
+                pollingInterval = null;
                 handleCompleteFromAPI(data.script);
             } else if (data.status === 'parsing') {
-                updateProgress({ progress: data.progress, message: 'Parsing in progress...' });
+                updateProgress({ progress: data.progress, message: data.message || 'Parsing in progress...' });
+            } else if (data.status === 'failed' || data.detail) {
+                // Handle error status or error response
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+                handleError({ message: data.error || data.detail || '解析失败' });
             }
         } catch (error) {
             console.error('Polling error:', error);
+            // Don't stop polling on network errors - keep trying
         }
     }, 2000); // Poll every 2 seconds
 }

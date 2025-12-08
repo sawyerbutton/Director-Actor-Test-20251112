@@ -2,6 +2,7 @@
  * Upload page JavaScript
  * Handles file upload and analysis job submission
  * Supports both JSON and TXT file formats
+ * Enhanced with real-time progress tracking for TXT parsing
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -18,9 +19,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const geminiModelSelect = document.getElementById('geminiModel');
     const providerHint = document.getElementById('providerHint');
 
+    // Progress elements
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const progressStage = document.getElementById('progressStage');
+    const progressMessage = document.getElementById('progressMessage');
+    const progressSpinner = document.getElementById('progressSpinner');
+    const sceneProgressSection = document.getElementById('sceneProgressSection');
+    const sceneProgressList = document.getElementById('sceneProgressList');
+
+    // Step indicators
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const step3 = document.getElementById('step3');
+    const step4 = document.getElementById('step4');
+
     // File type radio buttons
     const fileTypeJSON = document.getElementById('fileTypeJSON');
     const fileTypeTXT = document.getElementById('fileTypeTXT');
+
+    // WebSocket connection
+    let ws = null;
+    let currentJobId = null;
+    let pollingInterval = null;
 
     // Provider hint messages
     const providerHints = {
@@ -70,6 +91,369 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // ==================== Progress Display Functions ====================
+
+    function showProgressSection() {
+        progressSection.classList.remove('d-none');
+        // Scroll to progress section
+        progressSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function hideProgressSection() {
+        progressSection.classList.add('d-none');
+    }
+
+    function updateProgress(percent, stage, message) {
+        progressBar.style.width = `${percent}%`;
+        progressBar.textContent = `${percent}%`;
+        progressBar.setAttribute('aria-valuenow', percent);
+
+        if (stage) {
+            progressStage.textContent = stage;
+        }
+        if (message) {
+            progressMessage.textContent = message;
+        }
+    }
+
+    function setStepStatus(stepElement, status) {
+        // status: 'pending', 'active', 'completed'
+        const icon = stepElement.querySelector('i');
+        stepElement.classList.remove('text-muted', 'text-primary', 'text-success');
+
+        if (status === 'pending') {
+            stepElement.classList.add('text-muted');
+            icon.className = 'bi bi-circle';
+        } else if (status === 'active') {
+            stepElement.classList.add('text-primary');
+            icon.className = 'bi bi-arrow-right-circle-fill';
+        } else if (status === 'completed') {
+            stepElement.classList.add('text-success');
+            icon.className = 'bi bi-check-circle-fill';
+        }
+    }
+
+    function updateSceneProgress(currentScene, totalScenes, sceneName) {
+        sceneProgressSection.classList.remove('d-none');
+
+        // Build scene progress HTML
+        let html = '';
+        for (let i = 1; i <= totalScenes; i++) {
+            const status = i < currentScene ? 'completed' : (i === currentScene ? 'active' : 'pending');
+            const icon = status === 'completed' ? 'bi-check-circle-fill text-success' :
+                        (status === 'active' ? 'bi-arrow-right-circle-fill text-primary' : 'bi-circle text-muted');
+            const name = i === currentScene ? sceneName : `场景 ${i}`;
+            html += `<span class="me-2"><i class="bi ${icon}"></i> ${name}</span>`;
+        }
+        sceneProgressList.innerHTML = html;
+    }
+
+    function showCompletionState(sceneCount, characterCount) {
+        // Update progress bar to success state
+        progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+        progressBar.classList.add('bg-success');
+        updateProgress(100, '解析完成!', `成功解析 ${sceneCount} 个场景，${characterCount} 个角色`);
+
+        // Hide spinner, show checkmark
+        progressSpinner.classList.add('d-none');
+        progressStage.innerHTML = '<i class="bi bi-check-circle-fill text-success me-2"></i>解析完成!';
+
+        // Update all steps to completed
+        setStepStatus(step1, 'completed');
+        setStepStatus(step2, 'completed');
+        setStepStatus(step3, 'completed');
+        setStepStatus(step4, 'completed');
+    }
+
+    function showErrorState(errorMsg) {
+        progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+        progressBar.classList.add('bg-danger');
+        progressStage.innerHTML = '<i class="bi bi-x-circle-fill text-danger me-2"></i>解析失败';
+        progressMessage.textContent = errorMsg;
+        progressSpinner.classList.add('d-none');
+    }
+
+    // ==================== WebSocket Connection ====================
+
+    function connectWebSocket(jobId) {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+        // Handle VS Code port forwarding: if on port 8001, connect WebSocket to 8000
+        let wsHost = window.location.host;
+        if (wsHost.includes(':8001')) {
+            wsHost = wsHost.replace(':8001', ':8000');
+            console.log('[DEBUG] Detected port forwarding, redirecting WebSocket to:', wsHost);
+        }
+
+        const wsUrl = `${protocol}//${wsHost}/ws/progress/${jobId}`;
+
+        console.log('Connecting to WebSocket:', wsUrl);
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+            console.log('WebSocket connected for job:', jobId);
+            updateProgress(5, '已连接服务器', '正在等待解析开始...');
+        };
+
+        ws.onmessage = function(event) {
+            const message = JSON.parse(event.data);
+            console.log('WebSocket message:', message);
+            handleProgressMessage(message);
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            // Start polling as fallback
+            startPolling(jobId);
+        };
+
+        ws.onclose = function() {
+            console.log('WebSocket disconnected');
+            // If not completed, start polling
+            if (currentJobId) {
+                startPolling(jobId);
+            }
+        };
+    }
+
+    function handleProgressMessage(message) {
+        console.log('[DEBUG] handleProgressMessage called:', message.type, message);
+
+        try {
+        if (message.type === 'progress') {
+            const progress = message.progress || 0;
+            const stage = message.stage || 'parsing';
+            const msg = message.message || '';
+
+            // Update step indicators based on progress
+            if (progress >= 5) {
+                setStepStatus(step1, 'completed');
+            }
+            if (progress >= 15) {
+                setStepStatus(step2, 'active');
+            }
+            if (progress >= 20) {
+                setStepStatus(step2, 'completed');
+                setStepStatus(step3, 'active');
+            }
+            if (progress >= 90) {
+                setStepStatus(step3, 'completed');
+                setStepStatus(step4, 'active');
+            }
+
+            // Update progress display
+            let stageName = '解析中...';
+            if (progress < 15) {
+                stageName = '上传文件中...';
+            } else if (progress < 20) {
+                stageName = '解析基础结构...';
+            } else if (progress < 90) {
+                stageName = 'LLM 语义增强中...';
+
+                // Try to extract scene info from message
+                const sceneMatch = msg.match(/Enhancing scene (\w+)/i) ||
+                                  msg.match(/增强场景 (\w+)/i) ||
+                                  msg.match(/场景 (\d+)\/(\d+)/);
+                if (sceneMatch) {
+                    // Show scene-level progress
+                    const currentScene = parseInt(msg.match(/(\d+)\/\d+/)?.[1] || '1');
+                    const totalScenes = parseInt(msg.match(/\d+\/(\d+)/)?.[1] || '1');
+                    if (currentScene && totalScenes) {
+                        updateSceneProgress(currentScene, totalScenes, sceneMatch[1] || `场景 ${currentScene}`);
+                    }
+                }
+            } else {
+                stageName = '正在完成...';
+            }
+
+            updateProgress(progress, stageName, msg);
+
+        } else if (message.type === 'complete') {
+            const sceneCount = message.scene_count || 0;
+            const characterCount = message.character_count || 0;
+
+            showCompletionState(sceneCount, characterCount);
+
+            // Stop polling if running
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+
+            // Close WebSocket
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+
+            // Redirect to preview page after a short delay
+            setTimeout(() => {
+                window.location.href = `/parse-preview/${currentJobId}`;
+            }, 1500);
+
+        } else if (message.type === 'error') {
+            showErrorState(message.message || '解析失败');
+
+            // Re-enable submit button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-play-circle"></i> 开始分析';
+
+            // Stop polling
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+        }
+        } catch (error) {
+            console.error('[DEBUG] Error in handleProgressMessage:', error);
+            // Still try to redirect on complete even if UI update fails
+            if (message.type === 'complete' && currentJobId) {
+                console.log('[DEBUG] Forcing redirect despite error');
+                window.location.href = `/parse-preview/${currentJobId}`;
+            }
+        }
+    }
+
+    // ==================== Helper: Get API Base URL ====================
+
+    function getApiBaseUrl() {
+        // Handle VS Code port forwarding: if on port 8001, API is on 8000
+        let host = window.location.host;
+        if (host.includes(':8001')) {
+            host = host.replace(':8001', ':8000');
+            console.log('[DEBUG] Detected port forwarding, redirecting API to:', host);
+        }
+        const protocol = window.location.protocol;
+        return `${protocol}//${host}`;
+    }
+
+    // ==================== Polling Fallback ====================
+
+    function startPolling(jobId) {
+        if (pollingInterval) return; // Already polling
+
+        console.log('[DEBUG] Starting polling for job:', jobId);
+        const apiBaseUrl = getApiBaseUrl();
+        let pollErrorCount = 0;
+        const maxPollErrors = 60; // 60 errors * 500ms = 30 seconds max
+        let isPollingActive = true;
+
+        // Define the polling function
+        const pollOnce = async () => {
+            if (!isPollingActive) return;
+
+            try {
+                const apiUrl = `${apiBaseUrl}/api/parsed-script/${jobId}`;
+                console.log('[DEBUG] Polling #' + (++pollErrorCount) + ' request:', apiUrl);
+                pollErrorCount--; // Reset (we're reusing the counter briefly)
+
+                const response = await fetch(apiUrl);
+                console.log('[DEBUG] Response status:', response.status);
+
+                // Handle 404 - job not found
+                if (response.status === 404) {
+                    console.error('[DEBUG] Job not found (404)');
+                    pollErrorCount++;
+                    if (pollErrorCount >= 10) {
+                        isPollingActive = false;
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        handleProgressMessage({
+                            type: 'error',
+                            message: '任务未找到，请返回首页重新上传'
+                        });
+                    }
+                    return;
+                }
+
+                // Reset error count on successful response
+                pollErrorCount = 0;
+
+                const responseText = await response.text();
+                console.log('[DEBUG] Response text length:', responseText.length);
+
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('[DEBUG] JSON parse error:', parseError.message);
+                    console.error('[DEBUG] First 200 chars:', responseText.substring(0, 200));
+                    return;
+                }
+
+                console.log('[DEBUG] Parsed response:', data.status, data.progress);
+
+                if (data.status === 'complete') {
+                    console.log('[DEBUG] *** COMPLETE DETECTED *** Stopping polling and redirecting...');
+                    console.log('[DEBUG] Parsing complete! Processing result...');
+                    isPollingActive = false;
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+
+                    // Calculate counts from script
+                    const script = data.script;
+                    const sceneCount = script.scenes ? script.scenes.length : 0;
+                    const allCharacters = new Set();
+                    if (script.scenes) {
+                        script.scenes.forEach(scene => {
+                            if (scene.characters) {
+                                scene.characters.forEach(char => allCharacters.add(char));
+                            }
+                        });
+                    }
+
+                    console.log('[DEBUG] Calling handleProgressMessage with complete');
+                    handleProgressMessage({
+                        type: 'complete',
+                        scene_count: sceneCount,
+                        character_count: allCharacters.size
+                    });
+
+                } else if (data.status === 'parsing') {
+                    const progress = data.progress || 10;
+                    console.log('[DEBUG] Parsing in progress, progress =', progress);
+                    handleProgressMessage({
+                        type: 'progress',
+                        progress: progress,
+                        message: data.message || '解析中...'
+                    });
+                } else if (data.status === 'failed') {
+                    console.log('[DEBUG] Parsing failed');
+                    isPollingActive = false;
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                    handleProgressMessage({
+                        type: 'error',
+                        message: data.error || '解析失败'
+                    });
+                } else {
+                    console.log('[DEBUG] Unknown status:', data.status);
+                }
+            } catch (error) {
+                console.error('[DEBUG] Polling error:', error);
+                pollErrorCount++;
+                if (pollErrorCount >= maxPollErrors) {
+                    isPollingActive = false;
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                    handleProgressMessage({
+                        type: 'error',
+                        message: '网络错误，请刷新页面重试'
+                    });
+                }
+            }
+        };
+
+        // Poll immediately first (don't wait for interval)
+        console.log('[DEBUG] Executing immediate first poll');
+        pollOnce();
+
+        // Then set up interval for subsequent polls (faster: 500ms)
+        pollingInterval = setInterval(pollOnce, 500);
+    }
+
+    // ==================== Form Submission ====================
+
     uploadForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -116,8 +500,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Disable submit button
         submitBtn.disabled = true;
-        const originalBtnText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>上传中...';
 
         try {
             // Create FormData
@@ -127,7 +509,20 @@ document.addEventListener('DOMContentLoaded', function() {
             let endpoint, params;
 
             if (fileType === 'txt') {
-                // TXT upload - goes to parse endpoint
+                // ==================== TXT Upload with Progress ====================
+
+                // Show progress section immediately
+                showProgressSection();
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>上传中...';
+
+                // Initialize progress display
+                updateProgress(0, '正在上传文件...', `文件: ${file.name}`);
+                setStepStatus(step1, 'active');
+                setStepStatus(step2, 'pending');
+                setStepStatus(step3, 'pending');
+                setStepStatus(step4, 'pending');
+
+                // Build endpoint
                 endpoint = '/api/parse-txt';
                 params = new URLSearchParams({
                     provider: provider,
@@ -138,53 +533,68 @@ document.addEventListener('DOMContentLoaded', function() {
                     params.append('model', model);
                 }
 
-                // Upload and parse TXT file
-                console.log('Uploading TXT file to:', `${endpoint}?${params}`);
+                const apiBaseUrl = getApiBaseUrl();
+                const fullUrl = `${apiBaseUrl}${endpoint}?${params}`;
+                console.log('Uploading TXT file to:', fullUrl);
 
-                // Update button to show uploading
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>上传中...';
-
-                const response = await fetch(`${endpoint}?${params}`, {
+                // Upload file
+                const response = await fetch(fullUrl, {
                     method: 'POST',
                     body: formData
                 });
 
-                console.log('Upload response status:', response.status);
-                console.log('Response OK?:', response.ok);
-
+                console.log('[DEBUG] Response received, parsing JSON...');
                 const data = await response.json();
-                console.log('Upload response data:', data);
-                console.log('Job ID from response:', data.job_id);
+                console.log('[DEBUG] Upload response:', data);
 
                 if (!response.ok) {
-                    console.error('Upload failed with error:', data.detail);
                     throw new Error(data.detail || '上传失败');
                 }
 
-                // Check if job_id exists
                 if (!data.job_id) {
-                    console.error('ERROR: No job_id in response!', data);
                     throw new Error('服务器响应缺少 job_id');
                 }
 
-                // Update button to show redirecting
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>跳转中...';
-                console.log('Button updated to 跳转中...');
+                // Store job ID and connect WebSocket
+                currentJobId = data.job_id;
+                console.log('[DEBUG] New job ID:', currentJobId);
 
-                // Redirect to parse preview page
-                const redirectUrl = `/parse-preview/${data.job_id}`;
-                console.log('Redirecting to:', redirectUrl);
+                // Stop any existing polling/WebSocket from previous jobs
+                console.log('[DEBUG] Cleaning up previous connections...');
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                    console.log('[DEBUG] Cleared previous polling interval');
+                }
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                    console.log('[DEBUG] Closed previous WebSocket');
+                }
 
-                // Small delay to ensure button update is visible, then redirect
-                setTimeout(() => {
-                    window.location.href = redirectUrl;
-                }, 100);
+                // Update progress - upload complete
+                console.log('[DEBUG] Updating progress to 5%...');
+                updateProgress(5, '文件上传完成', '正在连接服务器...');
+                setStepStatus(step1, 'completed');
 
-                // Stop execution here - redirect will happen
-                return;
+                // Update button
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>解析中...';
+
+                // Connect WebSocket for real-time updates
+                console.log('[DEBUG] Connecting WebSocket...');
+                connectWebSocket(currentJobId);
+
+                // Start polling immediately as backup (will complement WebSocket)
+                // Polling is always safe because it just checks status
+                console.log('[DEBUG] Starting polling for job:', currentJobId);
+                startPolling(currentJobId);
+                console.log('[DEBUG] Polling started, pollingInterval =', pollingInterval);
 
             } else {
-                // JSON upload - goes to analysis endpoint
+                // ==================== JSON Upload (Original Flow) ====================
+
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>上传中...';
+
                 endpoint = '/api/upload';
                 params = new URLSearchParams({
                     provider: provider,
@@ -195,8 +605,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     params.append('model', model);
                 }
 
-                // Upload file
-                const response = await fetch(`${endpoint}?${params}`, {
+                // Upload file with correct port handling
+                const apiBaseUrl = getApiBaseUrl();
+                const fullUrl = `${apiBaseUrl}${endpoint}?${params}`;
+                console.log('Uploading JSON file to:', fullUrl);
+                const response = await fetch(fullUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -212,13 +625,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
         } catch (error) {
-            console.error('Upload error (caught in catch block):', error);
-            console.error('Error stack:', error.stack);
+            console.error('Upload error:', error);
             showError(error.message || '上传失败，请重试');
 
             // Re-enable submit button
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalBtnText;
+            submitBtn.innerHTML = '<i class="bi bi-play-circle"></i> 开始分析';
+
+            // Hide progress section on error
+            if (progressSection) {
+                hideProgressSection();
+            }
         }
     });
 

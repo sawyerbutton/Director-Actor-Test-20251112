@@ -101,28 +101,103 @@ class LLMEnhancedParser(TXTScriptParser):
         logger.info(f"Step 2: Enhancing {len(script.scenes)} scenes with LLM...")
         enhanced_scenes = []
         total_scenes = len(script.scenes)
+        # 5 LLM calls per scene: scene_mission, setup_payoff, relation_changes, info_changes, key_events
+        llm_calls_per_scene = 5
+        total_llm_calls = total_scenes * llm_calls_per_scene
+        current_llm_call = 0
 
         for idx, scene in enumerate(script.scenes):
             # Get original scene text
             scene_text = scene_texts[idx] if idx < len(scene_texts) else ""
 
             logger.info(f"Enhancing scene {scene.scene_id}...")
-            enhanced_scene = self._enhance_scene(scene, scene_text, script.scenes)
+
+            # Enhanced scene with per-LLM-call progress updates
+            enhanced_scene = await self._enhance_scene_with_progress(
+                scene, scene_text, script.scenes,
+                idx, total_scenes, current_llm_call, total_llm_calls
+            )
             enhanced_scenes.append(enhanced_scene)
 
-            # Report progress if callback provided (await instead of create_task)
-            if self.progress_callback:
-                await self.progress_callback(
-                    current=idx + 1,
-                    total=total_scenes,
-                    message=f"Enhanced scene {scene.scene_id} ({idx + 1}/{total_scenes})"
-                )
+            # Update current LLM call counter
+            current_llm_call += llm_calls_per_scene
 
         # Create enhanced script
         enhanced_script = Script(scenes=enhanced_scenes)
 
         logger.info(f"✅ Enhanced {len(enhanced_scenes)} scenes successfully")
         return enhanced_script
+
+    async def _enhance_scene_with_progress(
+        self,
+        scene: Scene,
+        scene_text: str,
+        all_scenes: List[Scene],
+        scene_idx: int,
+        total_scenes: int,
+        base_llm_call: int,
+        total_llm_calls: int
+    ) -> Scene:
+        """
+        Enhance a single scene with LLM-extracted information and progress updates.
+
+        Args:
+            scene: Basic scene from TXT parser
+            scene_text: Original scene text
+            all_scenes: All scenes in script (for setup-payoff)
+            scene_idx: Current scene index (0-based)
+            total_scenes: Total number of scenes
+            base_llm_call: Starting LLM call number for this scene
+            total_llm_calls: Total LLM calls across all scenes
+
+        Returns:
+            Enhanced scene with semantic information
+        """
+        llm_steps = [
+            ("scene_mission", "提取场景目标", self._extract_scene_mission, (scene.scene_id, scene.setting, scene_text)),
+            ("setup_payoff", "构建因果链", self._extract_setup_payoff, (scene.scene_id, scene_text, all_scenes)),
+            ("relation_changes", "分析角色关系变化", self._extract_relation_changes, (scene.scene_id, scene_text, scene.characters)),
+            ("info_changes", "分析信息流动", self._extract_info_changes, (scene.scene_id, scene_text, scene.characters)),
+            ("key_events", "识别关键事件", self._extract_key_events, (scene.scene_id, scene_text, scene.characters)),
+        ]
+
+        results = {}
+        for step_idx, (step_name, step_desc, extract_func, args) in enumerate(llm_steps):
+            current_call = base_llm_call + step_idx + 1
+
+            # Send progress update before LLM call
+            if self.progress_callback:
+                logger.info(f"[PROGRESS] Sending progress: {current_call}/{total_llm_calls} - {step_desc}")
+                try:
+                    await self.progress_callback(
+                        current=current_call,
+                        total=total_llm_calls,
+                        message=f"场景 {scene_idx + 1}/{total_scenes}: {step_desc}..."
+                    )
+                    logger.info(f"[PROGRESS] Sent successfully: {current_call}/{total_llm_calls}")
+                except Exception as e:
+                    logger.error(f"[PROGRESS] Failed to send progress: {e}")
+
+            # Call the extraction function in thread pool to avoid blocking event loop
+            logger.info(f"[LLM] Calling {step_name}...")
+            import asyncio
+            results[step_name] = await asyncio.to_thread(extract_func, *args)
+            logger.info(f"[LLM] Completed {step_name}")
+
+        # Create enhanced scene
+        enhanced_scene = Scene(
+            scene_id=scene.scene_id,
+            setting=scene.setting,
+            characters=scene.characters,
+            scene_mission=results["scene_mission"],
+            key_events=results["key_events"],
+            setup_payoff=results["setup_payoff"],
+            relation_change=results["relation_changes"],
+            info_change=results["info_changes"],
+            key_object=scene.key_object  # Keep from basic parser (empty for now)
+        )
+
+        return enhanced_scene
 
     def _enhance_scene(
         self,
@@ -131,7 +206,7 @@ class LLMEnhancedParser(TXTScriptParser):
         all_scenes: List[Scene]
     ) -> Scene:
         """
-        Enhance a single scene with LLM-extracted information.
+        Enhance a single scene with LLM-extracted information (sync version for compatibility).
 
         Args:
             scene: Basic scene from TXT parser

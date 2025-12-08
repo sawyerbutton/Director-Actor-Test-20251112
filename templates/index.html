@@ -170,6 +170,65 @@
                     <i class="bi bi-exclamation-triangle"></i>
                     <span id="errorMessage"></span>
                 </div>
+
+                <!-- Progress Section (Hidden by default, shown during TXT parsing) -->
+                <div id="progressSection" class="mt-4 d-none">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <i class="bi bi-hourglass-split"></i> 解析进度
+                        </div>
+                        <div class="card-body">
+                            <!-- Current Stage -->
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status" id="progressSpinner">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span id="progressStage" class="fw-bold">准备中...</span>
+                            </div>
+
+                            <!-- Progress Bar -->
+                            <div class="progress mb-3" style="height: 25px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     role="progressbar"
+                                     id="progressBar"
+                                     style="width: 0%"
+                                     aria-valuenow="0"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100">0%</div>
+                            </div>
+
+                            <!-- Detailed Message -->
+                            <p class="text-muted mb-2" id="progressMessage">正在连接服务器...</p>
+
+                            <!-- Stage Steps -->
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between small">
+                                    <span id="step1" class="text-muted">
+                                        <i class="bi bi-circle"></i> 上传文件
+                                    </span>
+                                    <span id="step2" class="text-muted">
+                                        <i class="bi bi-circle"></i> 解析结构
+                                    </span>
+                                    <span id="step3" class="text-muted">
+                                        <i class="bi bi-circle"></i> LLM 增强
+                                    </span>
+                                    <span id="step4" class="text-muted">
+                                        <i class="bi bi-circle"></i> 完成
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Scene Progress (for LLM enhancement) -->
+                            <div id="sceneProgressSection" class="mt-3 d-none">
+                                <hr>
+                                <p class="small mb-2"><i class="bi bi-film"></i> 场景增强进度:</p>
+                                <div id="sceneProgressList" class="small">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

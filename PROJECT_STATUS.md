@@ -1,8 +1,8 @@
 # 项目开发进度与遗留问题
 
 **项目名称**: 剧本叙事结构分析系统 (Script Narrative Structure Analysis System)
-**当前版本**: v2.11.1
-**更新日期**: 2025-12-02
+**当前版本**: v2.12.12
+**更新日期**: 2025-12-08
 **状态**: ✅ 生产就绪 (Production Ready)
 
 ---
@@ -31,12 +31,13 @@
 | **Mermaid 关系图增强** | ✅ 完成 | 100% | **Session 15 新增** - TCC关系连接+图例 |
 | **分析结果持久化** | ✅ 完成 | 100% | **Session 16 新增** - SQLite 缓存 + 历史记录 |
 | **历史记录详情优化** | ✅ 完成 | 100% | **Session 17 新增** - 详情弹窗可视化增强 |
+| **TXT 上传进度增强** | ✅ 完成 | 100% | **Session 18 完成** - 非阻塞 LLM 调用 |
 
 **总体完成度**: 100%
 
 ---
 
-## 📅 开发历程 (Session 1-17)
+## 📅 开发历程 (Session 1-18)
 
 ### Session 1-6: 基础功能开发 (2025-11-12 ~ 2025-11-13)
 - Web 界面开发 (2,310 行代码)
@@ -508,6 +509,78 @@
 - ✅ JavaScript 函数完整嵌入
 - ✅ 所有 Tab 页渲染正确
 
+### Session 18: TXT 上传进度条优化 (2025-12-08) ✅ 完成
+**目标**: 修复 TXT 文件上传时进度条卡在 5% 不更新的问题，实现从 5% 到 100% 的平滑进度显示
+
+**背景**:
+- 用户上传 TXT 文件后，进度条从 0% 跳到 5% 后不再更新
+- 实际后端 LLM 增强正在进行 (每场景 5 次 LLM 调用)，但前端无法收到进度更新
+- 问题表现：前端轮询 230+ 次，但 fetch 请求无响应
+
+**问题分析**:
+
+1. **VS Code 端口转发问题** (已修复 v2.12.6-v2.12.7)
+   - 用户通过 VS Code 端口转发 (8001 → 8000) 访问 Web UI
+   - WebSocket 和 API 请求默认使用相对 URL，解析到错误的端口 8001
+   - 服务器实际运行在端口 8000
+
+2. **轮询请求无响应** (已修复 v2.12.10-v2.12.11)
+   - 前端日志显示 `Polling request:` 但无 `Response status:`
+   - fetch() 调用被阻塞，无法返回
+
+3. **🔑 根本原因: 同步 LLM 调用阻塞事件循环** (最终修复 v2.12.12)
+   - **问题代码** (`src/parser/llm_enhancer.py:183`):
+     ```python
+     results[step_name] = extract_func(*args)  # 同步调用阻塞事件循环
+     ```
+   - 同步 LLM 调用 (`self.llm.invoke()`) 在 async 函数中执行
+   - 阻塞 FastAPI 事件循环，导致 HTTP 请求无法处理
+   - 轮询请求 pending 但永远无法得到响应
+
+**最终解决方案** (v2.12.12):
+
+使用 `asyncio.to_thread()` 将同步 LLM 调用移至线程池：
+
+```python
+# src/parser/llm_enhancer.py:181-185
+logger.info(f"[LLM] Calling {step_name}...")
+import asyncio
+results[step_name] = await asyncio.to_thread(extract_func, *args)
+logger.info(f"[LLM] Completed {step_name}")
+```
+
+**为什么这解决了问题**:
+- `asyncio.to_thread()` 在单独的线程中运行同步函数
+- 不阻塞事件循环，允许 FastAPI 继续处理 HTTP 请求
+- 轮询请求能够正常响应，进度条平滑更新
+
+**版本迭代历史**:
+| 版本 | 修复内容 | 结果 |
+|------|----------|------|
+| v2.12.5 | 初始进度回调实现 | ❌ 进度仍卡住 |
+| v2.12.6 | WebSocket 端口重定向 | ❌ 进度仍卡住 |
+| v2.12.7 | 轮询请求端口修复 (getApiBaseUrl) | ❌ 进度仍卡住 |
+| v2.12.8 | 后端进度信息完善 (message 字段) | ❌ 进度仍卡住 |
+| v2.12.10 | 立即轮询 + 500ms 间隔 | ❌ 进度仍卡住 |
+| v2.12.11 | 增强轮询调试日志 | ❌ 发现 fetch 无响应 |
+| **v2.12.12** | **asyncio.to_thread() 非阻塞 LLM 调用** | **✅ 完全修复** |
+
+**修改文件**:
+- `src/parser/llm_enhancer.py:181-185` - 使用 `asyncio.to_thread()` 包装同步 LLM 调用
+- `src/version.py` - 版本更新至 2.12.12
+- `static/js/upload.js` - 添加增强调试日志 (v2.12.11)
+
+**技术要点**:
+- **事件循环阻塞**: 在 async 函数中执行同步 I/O 会阻塞整个事件循环
+- **asyncio.to_thread()**: Python 3.9+ 提供的方法，在线程池中运行同步函数
+- **FastAPI 并发**: 使用 async def 路由时，必须确保不阻塞事件循环
+
+**测试结果**:
+- ✅ 进度条从 5% 平滑更新到 100%
+- ✅ 进度消息正确显示 (如 "场景 1/2: 提取场景目标...")
+- ✅ 轮询请求正常响应
+- ✅ 解析完成后成功跳转到预览页
+
 ---
 
 ## ✅ 已完成功能清单
@@ -551,7 +624,43 @@
 
 ## ⚠️ 已知遗留问题
 
-### 0. Gemini 3 Pro 响应时间慢 (v2.7.0 新增) 🆕
+### 0. Gemini API 地区限制 (v2.11.1 新增) 🆕
+**严重程度**: 高
+**状态**: 已知限制
+**描述**:
+- 在中国大陆服务器 (阿里云 ECS) 部署时，Gemini API 返回 `400 FAILED_PRECONDITION` 错误
+- 错误信息: `User location is not supported for the API use.`
+- 所有 Gemini 模型 (2.5 Flash/Pro, 3 Pro Preview) 均受影响
+- 本地开发环境 (WSL2) 可正常访问，线上服务器无法访问
+
+**根本原因**:
+- Google Gemini API 有地区限制，不支持中国大陆直接访问
+- 服务器 IP 被 Google 识别为不支持的地区
+
+**解决方案**:
+1. **方案 A**: 部署到支持 Gemini 的地区 (美国、日本、新加坡等海外服务器)
+2. **方案 B**: 使用 DeepSeek 作为默认 LLM 提供商 (修改 `.env` 中 `LLM_PROVIDER=deepseek`)
+3. **方案 C**: 配置代理服务器访问 Gemini API (需要额外网络配置)
+
+**临时解决方案**:
+```bash
+# 在服务器 .env 文件中修改
+LLM_PROVIDER=deepseek
+```
+
+**相关日志**:
+```
+ERROR:src.gemini3_llm:Gemini 3 generation error: 400 FAILED_PRECONDITION.
+{'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}
+```
+
+**相关文件**:
+- `src/gemini3_llm.py` - Gemini 3 LLM 包装器
+- `src/pipeline.py:288-336` - LLM 工厂函数
+
+---
+
+### 1. Gemini 3 Pro 响应时间慢 (v2.7.0)
 **严重程度**: 中
 **状态**: 已适配 (v2.7.0)
 **描述**:
@@ -796,6 +905,45 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ## 📝 变更日志
 
+### v2.12.12 (2025-12-08) - Session 18 ✅ 完成
+#### TXT 上传进度条优化 - 非阻塞 LLM 调用
+- 🔑 **根本原因修复**: 同步 LLM 调用阻塞 FastAPI 事件循环，导致 HTTP 请求无法响应
+- 🆕 **asyncio.to_thread()**: 将同步 LLM 调用移至线程池，不阻塞事件循环
+- 🔧 **VS Code 端口转发修复**: 解决通过端口转发访问时 API 请求不到达服务器的问题
+- 🆕 **getApiBaseUrl() 辅助函数**: 统一处理端口转发场景下的 API 基础 URL
+- 🔧 **WebSocket 端口重定向**: 检测 8001 端口时自动重定向到 8000
+- 🔧 **轮询请求端口修复**: 使用绝对 URL 确保请求到达正确端口
+- 🔧 **后端进度信息完善**: API 响应包含 progress 和 message 字段
+- 🆕 **调试日志增强**: 前后端均添加详细调试日志便于问题排查
+
+#### 关键修复
+```python
+# src/parser/llm_enhancer.py:181-185
+# 修复前 (阻塞事件循环):
+results[step_name] = extract_func(*args)
+
+# 修复后 (非阻塞):
+import asyncio
+results[step_name] = await asyncio.to_thread(extract_func, *args)
+```
+
+#### 文件变更
+- 📄 更新 `src/parser/llm_enhancer.py:181-185` - **核心修复**: asyncio.to_thread() 包装
+- 📄 更新 `static/js/upload.js` - 添加 getApiBaseUrl()，增强调试日志
+- 📄 更新 `src/web/app.py` - API 响应包含 message 字段，添加轮询日志
+- 📄 更新 `src/version.py` - 版本 2.12.12
+
+#### 版本历史 (Session 18)
+| 版本 | 修复内容 | 结果 |
+|------|----------|------|
+| v2.12.5 | 初始进度回调实现 | ❌ |
+| v2.12.6 | WebSocket 端口重定向 | ❌ |
+| v2.12.7 | 轮询请求端口修复 (getApiBaseUrl) | ❌ |
+| v2.12.8 | 后端进度信息完善 (message 字段) | ❌ |
+| v2.12.10 | 立即轮询 + 500ms 间隔 | ❌ |
+| v2.12.11 | 增强轮询调试日志 | ❌ |
+| **v2.12.12** | **asyncio.to_thread() 非阻塞 LLM 调用** | **✅** |
+
 ### v2.11.1 (2025-12-02) - Session 17 ✅ 完成
 #### 历史记录详情弹窗优化
 - 🎨 **详情弹窗重构**: 从原始 JSON 展示升级为富可视化界面
@@ -979,6 +1127,7 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ---
 
-**文档版本**: 1.9
-**最后更新**: 2025-12-02
+**文档版本**: 2.1
+**最后更新**: 2025-12-08
 **维护者**: AI Assistant (Claude Code)
+**当前软件版本**: v2.12.12 (Session 18: Non-Blocking LLM Calls)
