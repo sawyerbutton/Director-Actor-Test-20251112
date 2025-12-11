@@ -316,11 +316,42 @@ class ModificationValidation(BaseModel):
     new_issues_introduced: int = Field(..., ge=0)
 
 
+class ModificationRound(BaseModel):
+    """Record of a single modification round (v2.13.0).
+
+    Used to track progress across multiple modification iterations
+    and detect convergence.
+    """
+    round_number: int = Field(..., ge=1, le=10, description="轮次编号 (1-based)")
+    issues_before: int = Field(..., ge=0, description="本轮开始前的问题数")
+    issues_fixed: int = Field(..., ge=0, description="本轮修复的问题数")
+    issues_skipped: int = Field(..., ge=0, description="本轮跳过的问题数")
+    new_issues_found: int = Field(..., ge=0, description="本轮新发现的问题数")
+    issues_after: int = Field(..., ge=0, description="本轮结束后的问题数")
+    convergence_rate: float = Field(
+        ..., ge=-1.0, le=1.0,
+        description="收敛率: (before - after) / before, 负值表示问题增加"
+    )
+    stop_reason: Optional[str] = Field(
+        None,
+        description="停止原因: 'converged' | 'max_rounds' | 'no_issues' | None(继续)"
+    )
+
+
 class ModifierOutput(BaseModel):
     """Output from Stage 3: Modifier."""
     modified_script: Script
     modification_log: List[ModificationLogEntry]
     validation: ModificationValidation
+    # v2.13.0: 新增修改轮次记录
+    modification_rounds: List[ModificationRound] = Field(
+        default_factory=list,
+        description="修改轮次记录，用于追踪多轮修改的收敛过程"
+    )
+    remaining_issues: List[str] = Field(
+        default_factory=list,
+        description="剩余未解决的问题描述列表（供人工审阅）"
+    )
 
     @model_validator(mode='after')
     def validate_fix_counts(self) -> 'ModifierOutput':

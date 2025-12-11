@@ -1,8 +1,8 @@
 # 项目开发进度与遗留问题
 
 **项目名称**: 剧本叙事结构分析系统 (Script Narrative Structure Analysis System)
-**当前版本**: v2.12.12
-**更新日期**: 2025-12-08
+**当前版本**: v2.13.0
+**更新日期**: 2025-12-11
 **状态**: ✅ 生产就绪 (Production Ready)
 
 ---
@@ -32,12 +32,14 @@
 | **分析结果持久化** | ✅ 完成 | 100% | **Session 16 新增** - SQLite 缓存 + 历史记录 |
 | **历史记录详情优化** | ✅ 完成 | 100% | **Session 17 新增** - 详情弹窗可视化增强 |
 | **TXT 上传进度增强** | ✅ 完成 | 100% | **Session 18 完成** - 非阻塞 LLM 调用 |
+| **TCC 合并优化** | ✅ 完成 | 100% | **Session 19 新增** - 镜像 TCC 合并阈值 80% |
+| **修改循环防护** | ✅ 完成 | 100% | **Session 19 新增** - 3轮上限 + 收敛检测 |
 
 **总体完成度**: 100%
 
 ---
 
-## 📅 开发历程 (Session 1-18)
+## 📅 开发历程 (Session 1-19)
 
 ### Session 1-6: 基础功能开发 (2025-11-12 ~ 2025-11-13)
 - Web 界面开发 (2,310 行代码)
@@ -905,6 +907,54 @@ cat .env | grep -E "LLM_PROVIDER|GOOGLE_API_KEY"
 
 ## 📝 变更日志
 
+### v2.13.0 (2025-12-11) - Session 19 ✅ 完成
+#### TCC 识别优化 + 修改循环防护
+
+**背景**:
+- 编剧反馈 "TCC_01 和 TCC_04 被拆分成两条主线"，实际应为同一 TCC
+- 编剧提出"无限递归修改"问题：修改问题1可能导致2345甚至新问题6
+- 需要防护机制避免修改陷入死循环
+
+**实现内容**:
+
+1. **降低 TCC 镜像合并阈值** (`src/pipeline.py:523-525`)
+   - 将 `merge_mirror_tccs()` 阈值从 90% 降低到 80%
+   - 更积极地合并高重叠的镜像 TCC，防止同一主线被拆分
+   - 位置: `src/pipeline.py` DiscovererActor.__call__()
+
+2. **Stage 3 修改循环上限** (`src/pipeline.py:665-667`)
+   - 新增 `MAX_MODIFICATION_ROUNDS = 3` 配置
+   - 每轮修改后重新检测问题
+   - 防止 "改一处引发新问题" 的无限递归
+
+3. **问题数量收敛检测** (`src/pipeline.py:849-851`)
+   - 新增 `CONVERGENCE_THRESHOLD = 0.10` 配置
+   - 如果问题数下降 <10%，认为已收敛，停止修改
+   - 输出剩余问题清单供人工审阅
+
+4. **修改日志增强** (`prompts/schemas.py:319-338`)
+   - 新增 `ModificationRound` 模型记录每轮修改
+   - 记录每轮的：问题数、修复数、新增数、收敛率
+   - `ModifierOutput` 新增 `modification_rounds` 和 `remaining_issues` 字段
+
+**文件变更**:
+- 📄 更新 `src/pipeline.py:521-525` - TCC 合并阈值从 0.9 降到 0.8
+- 📄 更新 `src/pipeline.py:656-911` - 重构 ModifierActor 实现修改循环
+- 📄 更新 `prompts/schemas.py:319-365` - 新增 ModificationRound 模型
+- 📄 更新 `src/version.py` - 版本号 2.13.0
+
+**测试验证**:
+- ✅ Schema 单元测试: 21/21 通过
+- ✅ ModificationRound 模型导入正常
+- ✅ ModifierActor 配置验证正常
+
+**技术要点**:
+- 修改循环使用 `_detect_issues()` 方法在每轮后重新检测
+- 收敛率计算: `(issues_before - issues_after) / issues_before`
+- 停止条件: `no_issues` | `max_rounds` | `converged` | `error`
+
+---
+
 ### v2.12.12 (2025-12-08) - Session 18 ✅ 完成
 #### TXT 上传进度条优化 - 非阻塞 LLM 调用
 - 🔑 **根本原因修复**: 同步 LLM 调用阻塞 FastAPI 事件循环，导致 HTTP 请求无法响应
@@ -1127,7 +1177,7 @@ results[step_name] = await asyncio.to_thread(extract_func, *args)
 
 ---
 
-**文档版本**: 2.1
-**最后更新**: 2025-12-08
+**文档版本**: 2.2
+**最后更新**: 2025-12-11
 **维护者**: AI Assistant (Claude Code)
-**当前软件版本**: v2.12.12 (Session 18: Non-Blocking LLM Calls)
+**当前软件版本**: v2.13.0 (Session 19: TCC Merge Optimization + Modification Loop)

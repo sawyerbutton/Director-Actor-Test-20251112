@@ -518,9 +518,11 @@ class DiscovererActor:
                 logger.warning(f"TCC independence warnings: {warnings}")
                 # Don't add to errors yet - we'll try to merge first
 
-            # Auto-merge mirror TCCs if overlap is very high (>90%)
+            # Auto-merge mirror TCCs if overlap is high (>=80%)
             from prompts.schemas import merge_mirror_tccs
-            merged_tccs, merge_logs = merge_mirror_tccs(discoverer_output.tccs, threshold=0.9)
+            # v2.13.0: 降低阈值从 0.9 到 0.8，更积极地合并镜像 TCC
+            # 解决编剧反馈的 "TCC_01 和 TCC_04 被拆分" 问题
+            merged_tccs, merge_logs = merge_mirror_tccs(discoverer_output.tccs, threshold=0.8)
 
             if merge_logs:
                 logger.info("🔄 Auto-merging mirror TCCs:")
@@ -652,90 +654,253 @@ class AuditorActor:
 
 
 class ModifierActor:
-    """Stage 3: Structural Correction Actor."""
+    """Stage 3: Structural Correction Actor.
+
+    v2.13.0: 新增修改循环机制
+    - 最多执行 MAX_MODIFICATION_ROUNDS 轮修改
+    - 每轮修改后重新检测问题
+    - 检测收敛：如果问题数下降 < CONVERGENCE_THRESHOLD，停止
+    """
+
+    # v2.13.0: 修改循环配置
+    MAX_MODIFICATION_ROUNDS = 3  # 最大修改轮数
+    CONVERGENCE_THRESHOLD = 0.10  # 收敛阈值：问题数下降 <10% 视为收敛
 
     def __init__(self, llm: BaseChatModel):
         self.llm = llm
         self.prompt_template = load_prompt("3_modifier")
 
+    def _detect_issues(self, script: "Script") -> list:
+        """检测脚本中的结构问题。"""
+        from prompts.schemas import validate_setup_payoff_integrity, Issue, SuggestedFix
+
+        errors = validate_setup_payoff_integrity(script)
+
+        issues = []
+        for i, error in enumerate(errors[:10], 1):  # 限制每轮最多 10 个问题
+            issue = Issue(
+                issue_id=f"ISS_{i:03d}",
+                severity="high",
+                category="broken_setup_payoff",
+                description=error,
+                affected_scenes=["S01"],  # 简化处理
+                suggested_fix=SuggestedFix(
+                    action="add_payoff_reference",
+                    target_scene="S01",
+                    field="setup_payoff.payoff_from",
+                    value=[]
+                )
+            )
+            issues.append(issue)
+
+        return issues
+
+    def _apply_single_round(self, script: "Script", issues: list, round_num: int) -> tuple:
+        """执行单轮修改。
+
+        Returns:
+            tuple: (modified_script, modification_log, validation)
+        """
+        from prompts.schemas import AuditReport, ModifierOutput as SingleRoundOutput
+
+        audit_report = AuditReport(issues=issues)
+
+        input_data = {
+            "script": script.model_dump(),
+            "audit_report": audit_report.model_dump()
+        }
+
+        messages = [
+            SystemMessage(content=self.prompt_template),
+            HumanMessage(content=f"Fix these issues (Round {round_num}):\n\n{json.dumps(input_data, indent=2, ensure_ascii=False)}")
+        ]
+
+        logger.info(f"🔄 Round {round_num}: Calling LLM to fix {len(issues)} issues...")
+        response = self.llm.invoke(messages)
+
+        cleaned_content = clean_json_response(response.content)
+        round_output = SingleRoundOutput.model_validate_json(cleaned_content)
+
+        return round_output.modified_script, round_output.modification_log, round_output.validation
+
     @trace_actor("modifier")
     def __call__(self, state: PipelineState) -> PipelineState:
-        """Execute Stage 3: Apply structural corrections."""
+        """Execute Stage 3: Apply structural corrections with iteration loop.
+
+        v2.13.0: 实现修改循环
+        1. 检测问题
+        2. 执行修改
+        3. 重新检测问题
+        4. 检查收敛条件
+        5. 重复直到收敛或达到最大轮数
+        """
 
         try:
-            # Generate audit report (simple version - real implementation would be more sophisticated)
-            from prompts.schemas import validate_setup_payoff_integrity, AuditReport, Issue, SuggestedFix, ModificationValidation
+            from prompts.schemas import (
+                validate_setup_payoff_integrity, AuditReport, Issue, SuggestedFix,
+                ModificationValidation, ModificationRound
+            )
 
-            script = state["script"]
-            errors = validate_setup_payoff_integrity(script)
+            current_script = state["script"]
+            all_modification_logs = []
+            modification_rounds = []
+            total_fixed = 0
+            total_skipped = 0
 
-            # Create issues from validation errors
-            issues = []
-            for i, error in enumerate(errors[:10], 1):  # Limit to 10 issues
-                # Parse error message to create fix
-                # This is simplified - real implementation would be more sophisticated
-                issue = Issue(
-                    issue_id=f"ISS_{i:03d}",
-                    severity="high",
-                    category="broken_setup_payoff",
-                    description=error,
-                    affected_scenes=["S01"],  # Simplified
-                    suggested_fix=SuggestedFix(
-                        action="add_payoff_reference",
-                        target_scene="S01",
-                        field="setup_payoff.payoff_from",
-                        value=[]
-                    )
-                )
-                issues.append(issue)
-
-            audit_report = AuditReport(issues=issues)
+            # 初始问题检测
+            issues = self._detect_issues(current_script)
+            initial_issue_count = len(issues)
 
             if not issues:
                 logger.info("✅ No structural issues found, skipping Modifier")
                 state["modifier_output"] = ModifierOutput(
-                    modified_script=script,
+                    modified_script=current_script,
                     modification_log=[],
                     validation=ModificationValidation(
                         total_issues=0,
                         fixed=0,
                         skipped=0,
                         new_issues_introduced=0
-                    )
+                    ),
+                    modification_rounds=[],
+                    remaining_issues=[]
                 )
                 state["current_stage"] = "modifier_completed"
                 return state
 
-            # Prepare input
-            input_data = {
-                "script": script.model_dump(),
-                "audit_report": audit_report.model_dump()
-            }
+            logger.info(f"🔍 Initial issue detection: {len(issues)} issues found")
 
-            # Create messages
-            messages = [
-                SystemMessage(content=self.prompt_template),
-                HumanMessage(content=f"Fix these issues:\n\n{json.dumps(input_data, indent=2, ensure_ascii=False)}")
-            ]
+            previous_issue_count = len(issues)
 
-            # Call LLM
-            logger.info(f"Calling LLM to fix {len(issues)} issues...")
-            response = self.llm.invoke(messages)
+            # 修改循环
+            for round_num in range(1, self.MAX_MODIFICATION_ROUNDS + 1):
+                issues_before = len(issues)
 
-            # Parse and validate output
-            cleaned_content = clean_json_response(response.content)
-            modifier_output = ModifierOutput.model_validate_json(cleaned_content)
+                if issues_before == 0:
+                    logger.info(f"✅ Round {round_num}: No issues remaining, stopping")
+                    round_record = ModificationRound(
+                        round_number=round_num,
+                        issues_before=0,
+                        issues_fixed=0,
+                        issues_skipped=0,
+                        new_issues_found=0,
+                        issues_after=0,
+                        convergence_rate=1.0,
+                        stop_reason="no_issues"
+                    )
+                    modification_rounds.append(round_record)
+                    break
 
-            # Update state
-            state["modifier_output"] = modifier_output
+                # 执行单轮修改
+                try:
+                    modified_script, round_logs, round_validation = self._apply_single_round(
+                        current_script, issues, round_num
+                    )
+                    current_script = modified_script
+                    all_modification_logs.extend(round_logs)
+                    total_fixed += round_validation.fixed
+                    total_skipped += round_validation.skipped
+                except Exception as e:
+                    logger.warning(f"⚠️ Round {round_num} failed: {e}, stopping iteration")
+                    round_record = ModificationRound(
+                        round_number=round_num,
+                        issues_before=issues_before,
+                        issues_fixed=0,
+                        issues_skipped=issues_before,
+                        new_issues_found=0,
+                        issues_after=issues_before,
+                        convergence_rate=0.0,
+                        stop_reason=f"error: {str(e)[:50]}"
+                    )
+                    modification_rounds.append(round_record)
+                    break
+
+                # 重新检测问题
+                new_issues = self._detect_issues(current_script)
+                issues_after = len(new_issues)
+
+                # 计算新发现的问题数（不在原有问题列表中的）
+                old_descriptions = {issue.description for issue in issues}
+                new_issue_descriptions = [i.description for i in new_issues if i.description not in old_descriptions]
+                new_issues_found = len(new_issue_descriptions)
+
+                # 计算收敛率
+                if issues_before > 0:
+                    convergence_rate = (issues_before - issues_after) / issues_before
+                else:
+                    convergence_rate = 1.0
+
+                logger.info(f"📊 Round {round_num} results:")
+                logger.info(f"   Issues before: {issues_before}")
+                logger.info(f"   Issues after: {issues_after}")
+                logger.info(f"   New issues found: {new_issues_found}")
+                logger.info(f"   Convergence rate: {convergence_rate:.1%}")
+
+                # 记录本轮结果
+                stop_reason = None
+
+                # 检查停止条件
+                if issues_after == 0:
+                    stop_reason = "no_issues"
+                    logger.info(f"✅ Round {round_num}: All issues resolved!")
+                elif round_num >= self.MAX_MODIFICATION_ROUNDS:
+                    stop_reason = "max_rounds"
+                    logger.info(f"⚠️ Round {round_num}: Max rounds reached, stopping")
+                elif convergence_rate < self.CONVERGENCE_THRESHOLD and round_num > 1:
+                    stop_reason = "converged"
+                    logger.info(f"📈 Round {round_num}: Converged (rate {convergence_rate:.1%} < {self.CONVERGENCE_THRESHOLD:.1%})")
+
+                round_record = ModificationRound(
+                    round_number=round_num,
+                    issues_before=issues_before,
+                    issues_fixed=round_validation.fixed,
+                    issues_skipped=round_validation.skipped,
+                    new_issues_found=new_issues_found,
+                    issues_after=issues_after,
+                    convergence_rate=convergence_rate,
+                    stop_reason=stop_reason
+                )
+                modification_rounds.append(round_record)
+
+                if stop_reason:
+                    break
+
+                # 准备下一轮
+                issues = new_issues
+                previous_issue_count = issues_after
+
+            # 最终问题检测
+            final_issues = self._detect_issues(current_script)
+            remaining_issue_descriptions = [issue.description for issue in final_issues]
+
+            # 构建最终输出
+            state["modifier_output"] = ModifierOutput(
+                modified_script=current_script,
+                modification_log=all_modification_logs,
+                validation=ModificationValidation(
+                    total_issues=initial_issue_count,
+                    fixed=total_fixed,
+                    skipped=total_skipped,
+                    new_issues_introduced=len(remaining_issue_descriptions)
+                ),
+                modification_rounds=modification_rounds,
+                remaining_issues=remaining_issue_descriptions
+            )
             state["current_stage"] = "modifier_completed"
-            state["messages"].extend([messages[0], messages[1], response])
 
-            # Log results
-            logger.info(f"✅ Modifications complete:")
-            logger.info(f"  Total issues: {modifier_output.validation.total_issues}")
-            logger.info(f"  Fixed: {modifier_output.validation.fixed}")
-            logger.info(f"  Skipped: {modifier_output.validation.skipped}")
+            # 日志总结
+            logger.info(f"\n{'='*60}")
+            logger.info(f"✅ Modification loop complete:")
+            logger.info(f"   Total rounds: {len(modification_rounds)}")
+            logger.info(f"   Initial issues: {initial_issue_count}")
+            logger.info(f"   Final issues: {len(final_issues)}")
+            logger.info(f"   Total fixed: {total_fixed}")
+            logger.info(f"   Total skipped: {total_skipped}")
+            if remaining_issue_descriptions:
+                logger.info(f"   ⚠️ Remaining issues for manual review:")
+                for desc in remaining_issue_descriptions[:5]:  # 只显示前5个
+                    logger.info(f"      - {desc[:80]}...")
+            logger.info(f"{'='*60}\n")
 
         except Exception as e:
             logger.error(f"❌ Modifier failed: {e}")
